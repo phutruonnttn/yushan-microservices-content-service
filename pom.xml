@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.yushan</groupId>
-    <artifactId>user-service</artifactId>
+    <artifactId>content-service</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>user-service</name>
-    <description>User Service for Yushan Web Novel Platform</description>
+    <name>content-service</name>
+    <description>Content Service for Yushan Web Novel Platform</description>
     <url/>
     <licenses>
         <license/>
