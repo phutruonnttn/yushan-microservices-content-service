@@ -9,11 +9,11 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       POSTGRES_DB: ${DB_NAME:-yushan_content}
     ports:
-      - "5436:5436"
+      - "5436:5432"
     volumes:
       - content_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -p 5436"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,11 +27,11 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
     ports:
-      - "6383:6383"
+      - "6383:6379"
     volumes:
       - content_redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6383", "ping"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,11 +58,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       DB_NAME: ${DB_NAME:-yushan_content}
       DB_HOST: postgres
-      DB_PORT: 5436
+      DB_PORT: 5432
 
       # Redis Configuration
       REDIS_HOST: redis
-      REDIS_PORT: 6383
+      REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
 
       # Eureka Configuration
