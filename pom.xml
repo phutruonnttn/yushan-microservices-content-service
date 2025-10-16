@@ -90,7 +90,7 @@
                 <exclusion>
                     <groupId>commons-lang</groupId>
                     <artifactId>commons-lang</artifactId>
-                </exclusion>
+                </exclusion>               
             </exclusions>
         </dependency>
         <dependency>
@@ -388,6 +388,7 @@
                     <dataDirectory>${user.home}/.m2/repository/org/owasp/dependency-check-data</dataDirectory>
                     <format>ALL</format>
                     <failBuildOnCVSS>10</failBuildOnCVSS>
+                    <suppressionFile>dependency-check-suppressions.xml</suppressionFile>
                 </configuration>
             </plugin>
 
