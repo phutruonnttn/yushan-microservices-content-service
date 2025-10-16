@@ -5,7 +5,7 @@ services:
     container_name: yushan-content-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${DB_USERNAME:-yushan_user}
+      POSTGRES_USER: ${DB_USERNAME:-yushan_content}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       POSTGRES_DB: ${DB_NAME:-yushan_content}
     ports:
@@ -20,12 +20,12 @@ services:
     networks:
       - yushan-platform-network
 
-  # Redis Cache for Content Service
+  # Redis Cache for Content Service (for caching popular content)
   redis:
     image: redis:7-alpine
     container_name: yushan-content-redis
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
     ports:
       - "6383:6383"
     volumes:
@@ -54,7 +54,7 @@ services:
       SPRING_PROFILES_ACTIVE: docker
 
       # Database Configuration
-      DB_USERNAME: ${DB_USERNAME:-yushan_user}
+      DB_USERNAME: ${DB_USERNAME:-yushan_content}
       DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       DB_NAME: ${DB_NAME:-yushan_content}
       DB_HOST: postgres
@@ -79,7 +79,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 90s
 
 volumes:
   content_pg_data:
