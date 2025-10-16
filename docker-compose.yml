@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       POSTGRES_DB: ${DB_NAME:-yushan_content}
     ports:
-      - "5436:5432"  # External:Internal (corrected port)
+      - "5436:5432"
     volumes:
       - content_pg_data:/var/lib/postgresql/data
     healthcheck:
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "1gb", "--maxmemory-policy", "allkeys-lru"]
     ports:
-      - "6383:6379"  # External:Internal (corrected port)
+      - "6383:6379"
     volumes:
       - content_redis_data:/data
     healthcheck:
@@ -35,52 +35,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    networks:
-      - yushan-platform-network
-
-  # Elasticsearch for Content Search
-  elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
-    container_name: yushan-content-elasticsearch
-    restart: unless-stopped
-    environment:
-      - discovery.type=single-node
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
-      - xpack.security.enabled=false
-      - xpack.security.enrollment.enabled=false
-    ports:
-      - "9200:9200"
-      - "9300:9300"
-    volumes:
-      - content_es_data:/usr/share/elasticsearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-    networks:
-      - yushan-platform-network
-
-  # MinIO for File Storage (S3-compatible)
-  minio:
-    image: minio/minio:latest
-    container_name: yushan-content-minio
-    restart: unless-stopped
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-    ports:
-      - "9000:9000"  # API
-      - "9001:9001"  # Console
-    volumes:
-      - content_minio_data:/data
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
     networks:
       - yushan-platform-network
 
@@ -96,10 +50,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      elasticsearch:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
     environment:
       SPRING_PROFILES_ACTIVE: docker
 
@@ -108,38 +58,18 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-change_me_in_production}
       DB_NAME: ${DB_NAME:-yushan_content}
       DB_HOST: postgres
-      DB_PORT: 5436
+      DB_PORT: 5432
 
       # Redis Configuration
       REDIS_HOST: redis
-      REDIS_PORT: 6383
+      REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-
-      # Elasticsearch Configuration
-      ELASTICSEARCH_HOST: elasticsearch
-      ELASTICSEARCH_PORT: 9200
-      ELASTICSEARCH_SCHEME: http
-
-      # MinIO/S3 Configuration
-      STORAGE_TYPE: ${STORAGE_TYPE:-minio}
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
-      MINIO_BUCKET: ${MINIO_BUCKET:-yushan-content}
 
       # Eureka Configuration
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://yushan-eureka-registry:8761/eureka/
 
       # Server Configuration
       SERVER_PORT: 8082
-
-      # Content-specific Configuration
-      CONTENT_CHAPTER_MAX_LENGTH: ${CHAPTER_MAX_LENGTH:-50000}
-      CONTENT_CHAPTER_MIN_LENGTH: ${CHAPTER_MIN_LENGTH:-100}
-      CONTENT_NOVEL_MAX_CHAPTERS: ${NOVEL_MAX_CHAPTERS:-10000}
-      CONTENT_MODERATION_AUTO_APPROVE: ${MODERATION_AUTO_APPROVE:-false}
-      CONTENT_MODERATION_REQUIRE_REVIEW: ${MODERATION_REQUIRE_REVIEW:-true}
-      CONTENT_FILE_MAX_SIZE: ${FILE_MAX_SIZE:-5242880}
     ports:
       - "8082:8082"
     networks:
@@ -155,10 +85,6 @@ volumes:
   content_pg_data:
     driver: local
   content_redis_data:
-    driver: local
-  content_es_data:
-    driver: local
-  content_minio_data:
     driver: local
 
 # Connect to the existing Eureka network
