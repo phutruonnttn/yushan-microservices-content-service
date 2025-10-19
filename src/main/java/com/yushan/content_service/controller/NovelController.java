@@ -20,8 +20,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * REST Controller for novel management operations.
@@ -342,6 +345,23 @@ public class NovelController {
         
         long count = novelService.getNovelCount(request);
         return ApiResponse.success("Novel count retrieved successfully", count);
+    }
+
+    /**
+     * Batch get novels by IDs
+     * POST /api/v1/novels/batch/get
+     */
+    @PostMapping("/batch/get")
+    @Operation(summary = "[PUBLIC] Batch get novels by IDs", description = "Retrieves multiple novels by their IDs in a single request.")
+    public ApiResponse<List<NovelDetailResponseDTO>> getNovelsByIds(
+            @RequestBody List<Integer> novelIds) {
+        // Handle empty or null IDs
+        if (novelIds == null || novelIds.isEmpty()) {
+            return ApiResponse.success("Novels retrieved successfully", new ArrayList<>());
+        }
+            
+        List<NovelDetailResponseDTO> novels = novelService.getNovelsByIds(novelIds);
+        return ApiResponse.success("Novels retrieved successfully", novels);
     }
 
     /**
