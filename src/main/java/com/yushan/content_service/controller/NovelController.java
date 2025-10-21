@@ -73,7 +73,7 @@ public class NovelController {
         // Get user information from JWT token
         CustomUserDetails userDetails = getCurrentUser();
         UUID userId = UUID.fromString(userDetails.getUserId());
-        String authorName = userDetails.getEmail(); // Use email as author name for now
+        String authorName = userDetails.getDisplayUsername(); // Use username as author name
         
         NovelDetailResponseDTO novel = novelService.createNovel(userId, authorName, request);
         return ApiResponse.success("Novel created successfully", novel);
@@ -138,6 +138,18 @@ public class NovelController {
         
         NovelDetailResponseDTO novel = novelService.archiveNovel(id);
         return ApiResponse.success("Novel archived successfully", novel);
+    }
+
+    /**
+     * Unarchive novel (change from ARCHIVED to DRAFT)
+     * POST /api/v1/novels/{id}/unarchive
+     */
+    @PostMapping("/{id}/unarchive")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "[ADMIN] Unarchive novel", description = "Unarchives a novel by changing its status from ARCHIVED to DRAFT. Only admin can perform this operation.")
+    public ApiResponse<NovelDetailResponseDTO> unarchiveNovel(@PathVariable Integer id) {
+        NovelDetailResponseDTO novel = novelService.unarchiveNovel(id);
+        return ApiResponse.success("Novel unarchived successfully and returned to draft", novel);
     }
 
     /**
@@ -360,6 +372,43 @@ public class NovelController {
             
         List<NovelDetailResponseDTO> novels = novelService.getNovelsByIds(novelIds);
         return ApiResponse.success("Novels retrieved successfully", novels);
+    }
+
+    /**
+     * Get novel vote count
+     * GET /api/v1/novels/{id}/vote-count
+     */
+    @GetMapping("/{id}/vote-count")
+    @Operation(summary = "[PUBLIC] Get novel vote count", description = "Gets the current vote count for a novel.")
+    public ApiResponse<Integer> getNovelVoteCount(@PathVariable Integer id) {
+        Integer voteCount = novelService.getNovelVoteCount(id);
+        return ApiResponse.success("Vote count retrieved successfully", voteCount);
+    }
+
+    /**
+     * Increment vote count
+     * POST /api/v1/novels/{id}/vote
+     */
+    @PostMapping("/{id}/vote")
+    @Operation(summary = "[AUTHENTICATED] Increment vote count", description = "Increments the vote count for a novel. Requires authentication.")
+    public ApiResponse<String> incrementVoteCount(@PathVariable Integer id) {
+        novelService.incrementVoteCount(id);
+        return ApiResponse.success("Vote count incremented successfully");
+    }
+
+    /**
+     * Update novel rating and review count
+     * PUT /api/v1/novels/{id}/rating
+     */
+    @PutMapping("/{id}/rating")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "[AUTHENTICATED] Update novel rating and review count", description = "Updates the average rating and review count for a novel. Requires authentication.")
+    public ApiResponse<String> updateNovelRatingAndCount(
+            @PathVariable Integer id,
+            @RequestParam Float avgRating,
+            @RequestParam Integer reviewCount) {
+        novelService.updateNovelRatingAndCount(id, avgRating, reviewCount);
+        return ApiResponse.success("Novel rating and review count updated successfully");
     }
 
     /**

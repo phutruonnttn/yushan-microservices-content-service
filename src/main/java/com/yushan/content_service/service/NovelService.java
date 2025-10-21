@@ -497,6 +497,64 @@ public class NovelService {
     }
 
     /**
+     * Get novel vote count
+     */
+    public Integer getNovelVoteCount(Integer novelId) {
+        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        if (novel == null) {
+            throw new ResourceNotFoundException("novel not found");
+        }
+        return novel.getVoteCnt();
+    }
+
+    /**
+     * Increment vote count for a novel
+     */
+    @Transactional
+    public void incrementVoteCount(Integer novelId) {
+        // Check if novel exists and is not archived
+        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        if (novel == null) {
+            throw new ResourceNotFoundException("novel not found");
+        }
+        if (novel.getStatus().equals(NovelStatus.ARCHIVED.getValue())) {
+            throw new ResourceNotFoundException("novel not found");
+        }
+        
+        // Increment vote count in database
+        novelMapper.incrementVoteCount(novelId);
+        
+        // Get updated novel data from database to ensure consistency
+        Novel updatedNovel = novelMapper.selectByPrimaryKey(novelId);
+        
+        // Cache the updated novel data
+        redisUtil.cacheNovel(novelId, updatedNovel);
+    }
+
+    /**
+     * Update novel's average rating and review count
+     * This method is called by ReviewService when reviews are created/updated/deleted
+     */
+    @Transactional
+    public void updateNovelRatingAndCount(Integer novelId, Float avgRating, Integer reviewCount) {
+        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        if (novel == null) {
+            return; // Novel not found, skip update
+        }
+
+        // Update novel statistics with provided values
+        novel.setAvgRating(avgRating);
+        novel.setReviewCnt(reviewCount);
+        
+        // Update timestamp
+        novel.setUpdateTime(new Date());
+        novelMapper.updateByPrimaryKeySelective(novel);
+        
+        // Cache the updated novel data
+        redisUtil.cacheNovel(novelId, novel);
+    }
+
+    /**
      * Submit novel for review (Author only)
      */
     public NovelDetailResponseDTO submitForReview(Integer novelId, UUID userId) {
@@ -739,6 +797,37 @@ public class NovelService {
         return novels.stream()
             .map(this::toResponse)
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Unarchive novel (change status from ARCHIVED to DRAFT)
+     * Only admin can perform this operation
+     */
+    @Transactional
+    public NovelDetailResponseDTO unarchiveNovel(Integer id) {
+        Novel existing = novelMapper.selectByPrimaryKey(id);
+        if (existing == null) {
+            throw new ResourceNotFoundException("Novel not found with id: " + id);
+        }
+        
+        // Check if novel is currently archived
+        if (!existing.getStatus().equals(NovelStatus.ARCHIVED.getValue())) {
+            throw new IllegalArgumentException("Only archived novels can be unarchived. Current status: " + 
+                NovelStatus.fromValue(existing.getStatus()).getDescription());
+        }
+
+        // Change status from ARCHIVED to DRAFT
+        existing.setStatus(NovelStatus.DRAFT.getValue());
+        existing.setUpdateTime(new Date());
+        novelMapper.updateByPrimaryKeySelective(existing);
+
+        // Invalidate all caches since novel status changed
+        redisUtil.invalidateNovelCaches(id);
+
+        // Note: We don't auto-index to Elasticsearch here since DRAFT novels are not searchable
+        // The novel will be indexed when it's published
+
+        return toResponse(existing);
     }
 
     /**

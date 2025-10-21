@@ -16,6 +16,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import com.yushan.content_service.security.CustomMethodSecurityExpressionHandler;
 import com.yushan.content_service.security.JwtAuthenticationEntryPoint;
 import com.yushan.content_service.security.JwtAuthenticationFilter;
+import com.yushan.content_service.security.UserActivityFilter;
 
 /**
  * Security Configuration for Content Service.
@@ -30,6 +31,9 @@ public class SecurityConfig {
     
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
+    
+    @Autowired
+    private UserActivityFilter userActivityFilter;
 
     /**
      * Security filter chain configuration
@@ -92,9 +96,15 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/novels/uuid/**").permitAll() // Get by UUID
                 .requestMatchers(HttpMethod.GET, "/api/v1/novels/author/**").permitAll() // Get by author
                 .requestMatchers(HttpMethod.POST, "/api/v1/novels/batch/get").permitAll() // Batch get by IDs
+                .requestMatchers(HttpMethod.GET, "/api/v1/novels/*/vote-count").permitAll() // Get vote count
+                
+                // Authenticated novel endpoints
+                .requestMatchers(HttpMethod.POST, "/api/v1/novels/*/vote").authenticated() // Increment vote
+                .requestMatchers(HttpMethod.PUT, "/api/v1/novels/*/rating").authenticated() // Update rating
                 
                 // Admin endpoints - require admin role
                 .requestMatchers("/api/v1/novels/admin/**").hasRole("ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/v1/novels/*/unarchive").hasRole("ADMIN") // Unarchive novel
                 
                 // Search APIs - public read access
                 .requestMatchers(HttpMethod.GET, "/api/v1/search/**").permitAll()
@@ -136,7 +146,10 @@ public class SecurityConfig {
             .httpBasic(basic -> basic.disable())
             
             // Add JWT filter before UsernamePasswordAuthenticationFilter
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            
+            // Add user activity filter after JWT filter
+            .addFilterAfter(userActivityFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
