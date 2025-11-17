@@ -1,8 +1,10 @@
 # Yushan Content Service
 
-> 📚 **Content Service for Yushan Webnovel Platform.** - Manages novels, chapters, genres, tags, and all content-related operations for the web novel platform.
+> 📚 **Content Service for Yushan Platform (Phase 2 - Microservices)** - Manages novels, chapters, genres, tags, and all content-related operations for the web novel platform.
 
-# Yushan Platform - Content Service Setup Guide
+## 📋 Overview
+
+Content Service is one of the main microservices of Yushan Platform (Phase 2), responsible for managing all novel content, including novels, chapters, categories, and search. This service uses Elasticsearch for advanced search, S3/MinIO for file storage, and Kafka to publish events.
 
 ## Architecture Overview
 
@@ -62,8 +64,8 @@ Before setting up the Content Service, ensure you have:
 
 ```bash
 # Clone the service registry repository
-git clone https://github.com/maugus0/yushan-platform-service-registry
-cd yushan-platform-service-registry
+git clone https://github.com/phutruonnttn/yushan-microservices-service-registry
+cd yushan-microservices-service-registry
 
 # Option 1: Run with Docker (Recommended)
 docker-compose up -d
@@ -82,8 +84,8 @@ docker-compose up -d
 ## Step 2: Clone the Content Service Repository
 
 ```bash
-git clone https://github.com/maugus0/yushan-content-service.git
-cd yushan-content-service
+git clone https://github.com/phutruonnttn/yushan-microservices-content-service.git
+cd yushan-microservices-content-service
 
 # Option 1: Run with Docker (Recommended)
 docker-compose up -d
@@ -122,65 +124,67 @@ Instances currently registered with Eureka:
 - **GET** `/api/v1/health` - Service health status
 
 ### Novel Management
-- **POST** `/api/v1/novels` - Create new novel
-- **GET** `/api/v1/novels/{novelId}` - Get novel details
-- **PUT** `/api/v1/novels/{novelId}` - Update novel
-- **DELETE** `/api/v1/novels/{novelId}` - Delete novel
-- **PUT** `/api/v1/novels/{novelId}/publish` - Publish novel
-- **PUT** `/api/v1/novels/{novelId}/unpublish` - Unpublish novel
-- **PUT** `/api/v1/novels/{novelId}/cover` - Upload cover image
-- **GET** `/api/v1/novels/{novelId}/statistics` - Get novel statistics
+- **POST** `/api/v1/novels` - Create new novel (AUTHOR/ADMIN)
+- **GET** `/api/v1/novels/{id}` - Get novel by ID
+- **GET** `/api/v1/novels/uuid/{uuid}` - Get novel by UUID
+- **PUT** `/api/v1/novels/{id}` - Update novel (AUTHOR/ADMIN)
+- **DELETE** `/api/v1/novels/{id}` - Archive novel (soft delete)
+- **POST** `/api/v1/novels/{id}/unarchive` - Unarchive novel (ADMIN)
+- **POST** `/api/v1/novels/{id}/view` - Increment view count
+- **GET** `/api/v1/novels` - List novels (with pagination and filters)
+- **GET** `/api/v1/novels/admin/all` - Get all novels including archived (ADMIN)
+- **POST** `/api/v1/novels/{id}/submit-review` - Submit novel for review (AUTHOR)
+- **POST** `/api/v1/novels/{id}/approve` - Approve novel (ADMIN)
+- **POST** `/api/v1/novels/{id}/reject` - Reject novel (ADMIN)
+- **POST** `/api/v1/novels/{id}/hide` - Hide novel (ADMIN/AUTHOR)
+- **POST** `/api/v1/novels/{id}/unhide` - Unhide novel (ADMIN/AUTHOR)
+- **GET** `/api/v1/novels/admin/under-review` - Get novels under review (ADMIN)
+- **GET** `/api/v1/novels/author/{authorId}` - Get novels by author
+- **GET** `/api/v1/novels/category/{categoryId}` - Get novels by category
+- **GET** `/api/v1/novels/count` - Get novel count (with filters)
+- **POST** `/api/v1/novels/batch/get` - Batch get novels by IDs
+- **GET** `/api/v1/novels/{id}/vote-count` - Get novel vote count
+- **POST** `/api/v1/novels/{id}/vote` - Vote for novel
+- **PUT** `/api/v1/novels/{id}/rating` - Update novel rating
 
 ### Chapter Management
-- **POST** `/api/v1/novels/{novelId}/chapters` - Create new chapter
-- **GET** `/api/v1/chapters/{chapterId}` - Get chapter details
-- **PUT** `/api/v1/chapters/{chapterId}` - Update chapter
-- **DELETE** `/api/v1/chapters/{chapterId}` - Delete chapter
-- **PUT** `/api/v1/chapters/{chapterId}/publish` - Publish chapter
-- **GET** `/api/v1/novels/{novelId}/chapters` - List novel chapters
-- **PUT** `/api/v1/chapters/{chapterId}/reorder` - Reorder chapters
+- **POST** `/api/v1/chapters` - Create new chapter (AUTHOR/ADMIN)
+- **POST** `/api/v1/chapters/batch` - Batch create chapters (AUTHOR/ADMIN)
+- **GET** `/api/v1/chapters/{uuid}` - Get chapter by UUID
+- **GET** `/api/v1/chapters/novel/{novelId}/number/{chapterNumber}` - Get chapter by novel ID and number
+- **GET** `/api/v1/chapters/novel/{novelId}` - List chapters by novel (with pagination)
+- **GET** `/api/v1/chapters/novel/{novelId}/statistics` - Get chapter statistics (AUTHOR/ADMIN)
+- **PUT** `/api/v1/chapters` - Update chapter (AUTHOR/ADMIN)
+- **PATCH** `/api/v1/chapters/publish` - Publish/unpublish chapter (AUTHOR/ADMIN)
+- **PATCH** `/api/v1/chapters/novel/{novelId}/publish` - Batch publish chapters (AUTHOR/ADMIN)
+- **POST** `/api/v1/chapters/{uuid}/view` - Increment chapter view count
+- **GET** `/api/v1/chapters/search` - Search chapters (with filters)
+- **DELETE** `/api/v1/chapters/{uuid}` - Delete chapter (AUTHOR/ADMIN)
+- **DELETE** `/api/v1/chapters/novel/{novelId}` - Delete all chapters of a novel (AUTHOR/ADMIN)
+- **DELETE** `/api/v1/chapters/admin/{uuid}` - Force delete chapter (ADMIN)
+- **DELETE** `/api/v1/chapters/admin/novel/{novelId}` - Force delete all chapters (ADMIN)
+- **GET** `/api/v1/chapters/{uuid}/next` - Get next chapter UUID
+- **GET** `/api/v1/chapters/{uuid}/previous` - Get previous chapter UUID
+- **GET** `/api/v1/chapters/exists` - Check if chapter exists
+- **GET** `/api/v1/chapters/novel/{novelId}/next-number` - Get next available chapter number (AUTHOR/ADMIN)
+- **POST** `/api/v1/chapters/batch/get` - Batch get chapters by IDs
 
-### Content Discovery
-- **GET** `/api/v1/novels/search` - Search novels
-- **GET** `/api/v1/novels/trending` - Get trending novels
-- **GET** `/api/v1/novels/new-releases` - Get new releases
-- **GET** `/api/v1/novels/recommended` - Get recommended novels
-- **GET** `/api/v1/novels/popular` - Get popular novels
-- **GET** `/api/v1/novels/genre/{genreId}` - Get novels by genre
-- **GET** `/api/v1/novels/author/{authorId}` - Get novels by author
+### Category Management
+- **GET** `/api/v1/categories` - Get all categories
+- **GET** `/api/v1/categories/active` - Get active categories only
+- **GET** `/api/v1/categories/{id}` - Get category by ID
+- **GET** `/api/v1/categories/slug/{slug}` - Get category by slug
+- **GET** `/api/v1/categories/{id}/statistics` - Get category statistics
+- **POST** `/api/v1/categories` - Create category (ADMIN)
+- **PUT** `/api/v1/categories/{id}` - Update category (ADMIN)
+- **DELETE** `/api/v1/categories/{id}` - Soft delete category (ADMIN)
+- **DELETE** `/api/v1/categories/{id}/hard` - Hard delete category (ADMIN)
 
-### Genre Management
-- **GET** `/api/v1/genres` - List all genres
-- **GET** `/api/v1/genres/{genreId}` - Get genre details
-- **POST** `/api/v1/genres` - Create genre (admin)
-- **PUT** `/api/v1/genres/{genreId}` - Update genre (admin)
-- **DELETE** `/api/v1/genres/{genreId}` - Delete genre (admin)
-
-### Tag Management
-- **GET** `/api/v1/tags` - List all tags
-- **GET** `/api/v1/tags/{tagId}` - Get tag details
-- **POST** `/api/v1/tags` - Create tag
-- **GET** `/api/v1/tags/search` - Search tags
-- **GET** `/api/v1/tags/popular` - Get popular tags
-
-### Author Operations
-- **GET** `/api/v1/authors/{authorId}` - Get author profile
-- **GET** `/api/v1/authors/{authorId}/novels` - Get author's novels
-- **GET** `/api/v1/authors/{authorId}/statistics` - Get author statistics
-- **GET** `/api/v1/authors/search` - Search authors
-
-### Collection Management
-- **GET** `/api/v1/collections` - List collections
-- **GET** `/api/v1/collections/{collectionId}` - Get collection details
-- **POST** `/api/v1/collections` - Create collection (admin)
-- **PUT** `/api/v1/collections/{collectionId}` - Update collection
-- **POST** `/api/v1/collections/{collectionId}/novels/{novelId}` - Add novel to collection
-
-### Content Moderation
-- **GET** `/api/v1/moderation/pending` - Get pending content (admin)
-- **PUT** `/api/v1/moderation/novels/{novelId}/approve` - Approve novel
-- **PUT** `/api/v1/moderation/novels/{novelId}/reject` - Reject novel
-- **PUT** `/api/v1/moderation/chapters/{chapterId}/flag` - Flag chapter
+### Search
+- **GET** `/api/v1/search` - Combined search (novels and chapters)
+- **GET** `/api/v1/search/novels` - Search novels only
+- **GET** `/api/v1/search/chapters` - Search chapters only
+- **GET** `/api/v1/search/suggestions` - Get search suggestions/autocomplete
 
 ---
 
@@ -264,14 +268,8 @@ The Content Service uses the following key entities:
 
 - **Novel** - Core novel information
 - **Chapter** - Chapter content and metadata
-- **Genre** - Genre categories
-- **Tag** - Content tags
-- **Author** - Author profiles
-- **NovelGenre** - Novel-genre mappings
-- **NovelTag** - Novel-tag mappings
-- **Collection** - Curated collections
-- **ContentModeration** - Moderation records
-- **NovelStatistics** - Aggregated novel statistics
+- **Category** - Category classifications (replaces Genre)
+- **NovelCategory** - Novel-category mappings
 
 ---
 
@@ -403,5 +401,14 @@ The Content Service exposes metrics through:
 
 ---
 
-## License
+## 📄 License
+
 This project is part of the Yushan Platform ecosystem.
+
+## 🔗 Links
+
+- **API Gateway**: [yushan-microservices-api-gateway](https://github.com/phutruonnttn/yushan-microservices-api-gateway)
+- **Service Registry**: [yushan-microservices-service-registry](https://github.com/phutruonnttn/yushan-microservices-service-registry)
+- **Config Server**: [yushan-microservices-config-server](https://github.com/phutruonnttn/yushan-microservices-config-server)
+- **Platform Documentation**: [yushan-platform-docs](https://github.com/phutruonnttn/yushan-platform-docs) - Complete documentation for all phases
+- **Phase 2 Architecture**: See [Phase 2 Microservices Architecture](https://github.com/phutruonnttn/yushan-platform-docs/blob/main/docs/phase2-microservices/PHASE2_MICROSERVICES_ARCHITECTURE.md)
