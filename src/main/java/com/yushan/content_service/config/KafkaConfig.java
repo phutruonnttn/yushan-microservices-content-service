@@ -1,14 +1,19 @@
 package com.yushan.content_service.config;
 
+import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
+import org.springframework.kafka.core.*;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
+import org.springframework.kafka.support.serializer.JsonDeserializer;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.util.backoff.FixedBackOff;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -48,6 +53,69 @@ public class KafkaConfig {
 
     @Value("${spring.kafka.producer.delivery-timeout-ms:120000}")
     private int deliveryTimeoutMs;
+
+    @Value("${spring.kafka.consumer.group-id:content-service}")
+    private String groupId;
+
+    @Value("${spring.kafka.consumer.auto-offset-reset:earliest}")
+    private String autoOffsetReset;
+
+    /**
+     * Consumer factory configuration
+     */
+    @Bean
+    public ConsumerFactory<String, Object> consumerFactory() {
+        Map<String, Object> configProps = new HashMap<>();
+        
+        // Bootstrap servers
+        configProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        
+        // Group ID
+        configProps.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
+        
+        // Auto offset reset
+        configProps.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, autoOffsetReset);
+        
+        // Disable auto commit
+        configProps.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
+        
+        // Key deserializer
+        configProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+        configProps.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
+        
+        // Value deserializer with error handling
+        configProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
+        configProps.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, StringDeserializer.class);
+        
+        // Trust all packages for deserialization
+        configProps.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
+        
+        // Disable type information to avoid class not found errors
+        configProps.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
+        
+        return new DefaultKafkaConsumerFactory<>(configProps);
+    }
+
+    /**
+     * Kafka listener container factory with error handling
+     */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(consumerFactory());
+        
+        // Configure error handler
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(
+            (record, exception) -> {
+                // Log the error and continue processing
+                System.err.println("Failed to process message: " + record + ", Error: " + exception.getMessage());
+            },
+            new FixedBackOff(1000L, 3L) // Retry 3 times with 1 second delay
+        );
+        factory.setCommonErrorHandler(errorHandler);
+        
+        return factory;
+    }
 
     /**
      * Producer factory configuration

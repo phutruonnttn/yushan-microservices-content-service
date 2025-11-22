@@ -540,6 +540,28 @@ public class NovelService {
     }
 
     /**
+     * Update novel's vote count
+     * This method is called by EngagementEventListener when votes are created or deleted
+     */
+    @Transactional
+    public void updateNovelVoteCount(Integer novelId, Integer voteCount) {
+        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        if (novel == null) {
+            return; // Novel not found, skip update
+        }
+
+        novel.setVoteCnt(voteCount);
+        novel.updateTimestamp();
+        novelMapper.updateByPrimaryKeySelective(novel);
+        
+        // Invalidate cache since novel was updated
+        redisUtil.invalidateNovelCaches(novelId);
+        
+        // Cache the updated novel data
+        redisUtil.cacheNovel(novelId, novel);
+    }
+
+    /**
      * Submit novel for review (Author only)
      */
     public NovelDetailResponseDTO submitForReview(Integer novelId, UUID userId) {
