@@ -57,23 +57,43 @@ public class ChapterService {
             wordCnt = req.getContent().trim().length();
         }
 
-        Date now = new Date();
-
         // Create chapter entity
         Chapter chapter = new Chapter();
         chapter.setUuid(UUID.randomUUID());
         chapter.setNovelId(req.getNovelId());
         chapter.setChapterNumber(req.getChapterNumber());
         chapter.setTitle(req.getTitle());
-        chapter.setContent(req.getContent());
-        chapter.setWordCnt(wordCnt);
-        chapter.setIsPremium(req.getIsPremium() != null ? req.getIsPremium() : false);
-        chapter.setYuanCost(req.getYuanCost() != null ? req.getYuanCost() : 0.0f);
-        chapter.setViewCnt(0L);
-        chapter.setIsValid(req.getIsValid() != null ? req.getIsValid() : true);
-        chapter.setCreateTime(now);
-        chapter.setUpdateTime(now);
-        chapter.setPublishTime(req.getPublishTime() != null ? req.getPublishTime() : now);
+        
+        chapter.initializeAsNew();
+        
+        if (req.getContent() != null) {
+            chapter.setContent(req.getContent());
+            // Set word count from request if provided, otherwise recalculate from content
+            if (wordCnt != null) {
+                chapter.updateWordCount(wordCnt);
+            } else {
+                chapter.recalculateWordCount();
+            }
+        } else if (wordCnt != null) {
+            chapter.updateWordCount(wordCnt);
+        }
+        
+        if (req.getIsPremium() != null && req.getIsPremium()) {
+            chapter.markAsPremium();
+        }
+        
+        if (req.getYuanCost() != null && req.getYuanCost() > 0) {
+            chapter.setPrice(req.getYuanCost());
+        }
+        
+        if (req.getIsValid() != null && !req.getIsValid()) {
+            chapter.markAsInvalid();
+        }
+        
+        // Set publish time if provided
+        if (req.getPublishTime() != null) {
+            chapter.setPublishTime(req.getPublishTime());
+        }
 
         chapterMapper.insertSelective(chapter);
 
@@ -112,7 +132,6 @@ public class ChapterService {
         }
 
         List<Chapter> chapters = new ArrayList<>();
-        Date now = new Date();
 
         for (ChapterBatchCreateRequestDTO.ChapterData data : req.getChapters()) {
             // Validate chapter number doesn't exist
@@ -131,15 +150,37 @@ public class ChapterService {
             chapter.setNovelId(req.getNovelId());
             chapter.setChapterNumber(data.getChapterNumber());
             chapter.setTitle(data.getTitle());
-            chapter.setContent(data.getContent());
-            chapter.setWordCnt(wordCnt);
-            chapter.setIsPremium(data.getIsPremium() != null ? data.getIsPremium() : false);
-            chapter.setYuanCost(data.getYuanCost() != null ? data.getYuanCost() : 0.0f);
-            chapter.setViewCnt(0L);
-            chapter.setIsValid(data.getIsValid() != null ? data.getIsValid() : true);
-            chapter.setCreateTime(now);
-            chapter.setUpdateTime(now);
-            chapter.setPublishTime(data.getPublishTime() != null ? data.getPublishTime() : now);
+            
+            chapter.initializeAsNew();
+            
+            if (data.getContent() != null) {
+                chapter.setContent(data.getContent());
+                // Set word count from data if provided, otherwise recalculate from content
+                if (wordCnt != null) {
+                    chapter.updateWordCount(wordCnt);
+                } else {
+                    chapter.recalculateWordCount();
+                }
+            } else if (wordCnt != null) {
+                chapter.updateWordCount(wordCnt);
+            }
+            
+            if (data.getIsPremium() != null && data.getIsPremium()) {
+                chapter.markAsPremium();
+            }
+            
+            if (data.getYuanCost() != null && data.getYuanCost() > 0) {
+                chapter.setPrice(data.getYuanCost());
+            }
+            
+            if (data.getIsValid() != null && !data.getIsValid()) {
+                chapter.markAsInvalid();
+            }
+            
+            // Set publish time if provided
+            if (data.getPublishTime() != null) {
+                chapter.setPublishTime(data.getPublishTime());
+            }
 
             chapters.add(chapter);
         }
@@ -397,33 +438,28 @@ public class ChapterService {
 
         if (req.getContent() != null && !req.getContent().trim().isEmpty()) {
             if (!req.getContent().equals(existing.getContent())) {
-                existing.setContent(req.getContent());
+                existing.updateContent(req.getContent());
                 hasChanges = true;
-
-                // Recalculate word count if content changed
-                if (req.getWordCnt() == null) {
-                    existing.setWordCnt(req.getContent().trim().length());
-                }
             }
         }
 
         if (req.getWordCnt() != null && !req.getWordCnt().equals(existing.getWordCnt())) {
-            existing.setWordCnt(req.getWordCnt());
+            existing.updateWordCount(req.getWordCnt());
             hasChanges = true;
         }
 
         if (req.getIsPremium() != null && !req.getIsPremium().equals(existing.getIsPremium())) {
-            existing.setIsPremium(req.getIsPremium());
+            existing.setPremiumStatus(req.getIsPremium());
             hasChanges = true;
         }
 
         if (req.getYuanCost() != null && !req.getYuanCost().equals(existing.getYuanCost())) {
-            existing.setYuanCost(req.getYuanCost());
+            existing.setPrice(req.getYuanCost());
             hasChanges = true;
         }
 
         if (req.getIsValid() != null && !req.getIsValid().equals(existing.getIsValid())) {
-            existing.setIsValid(req.getIsValid());
+            existing.setValidityStatus(req.getIsValid());
             hasChanges = true;
         }
 
@@ -433,7 +469,6 @@ public class ChapterService {
         }
 
         if (hasChanges) {
-            existing.setUpdateTime(new Date());
             chapterMapper.updateByPrimaryKeySelective(existing);
 
             // Update novel statistics if word count changed
@@ -476,11 +511,16 @@ public class ChapterService {
             throw new IllegalArgumentException("only the author can publish chapters");
         }
 
-        chapter.setIsValid(req.getIsValid());
         if (req.getPublishTime() != null) {
-            chapter.setPublishTime(req.getPublishTime());
+            chapter.publish(req.getPublishTime());
+        } else {
+            chapter.publish();
         }
-        chapter.setUpdateTime(new Date());
+        
+        // Set validity status if provided and different
+        if (req.getIsValid() != null && !req.getIsValid().equals(chapter.getIsValid())) {
+            chapter.setValidityStatus(req.getIsValid());
+        }
 
         chapterMapper.updateByPrimaryKeySelective(chapter);
 

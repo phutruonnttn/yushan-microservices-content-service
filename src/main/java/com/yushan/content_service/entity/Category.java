@@ -88,6 +88,67 @@ public class Category {
         this.updateTime = updateTime != null ? new Date(updateTime.getTime()) : null;
     }
 
+    // Business Logic Methods - Rich Domain Model
+
+    /**
+     * Activate the category.
+     * Updates updateTime automatically.
+     */
+    public void activate() {
+        this.isActive = true;
+        updateTimestamp();
+    }
+
+    /**
+     * Deactivate the category (soft delete).
+     * Updates updateTime automatically.
+     */
+    public void deactivate() {
+        this.isActive = false;
+        updateTimestamp();
+    }
+
+    /**
+     * Set active status.
+     * Updates updateTime automatically.
+     */
+    public void setActiveStatus(boolean isActive) {
+        this.isActive = isActive;
+        updateTimestamp();
+    }
+
+    /**
+     * Initialize a new category with default values.
+     * This is called when creating a new category.
+     */
+    public void initializeAsNew() {
+        Date now = new Date();
+        this.createTime = now;
+        this.updateTime = now;
+        this.isActive = true;
+    }
+
+    /**
+     * Update the update timestamp to current time.
+     */
+    public void updateTimestamp() {
+        this.updateTime = new Date();
+    }
+
+    /**
+     * Check if category is active.
+     */
+    public boolean isActiveCategory() {
+        return Boolean.TRUE.equals(this.isActive);
+    }
+
+    /**
+     * Check if category is inactive.
+     */
+    public boolean isInactive() {
+        return !isActiveCategory();
+    }
+
     @Override
     public String toString() {
         return "Category{" +

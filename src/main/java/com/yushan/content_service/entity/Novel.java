@@ -1,5 +1,6 @@
 package com.yushan.content_service.entity;
 
+import com.yushan.content_service.enums.NovelStatus;
 import java.util.Date;
 import java.util.UUID;
 
@@ -220,6 +221,240 @@ public class Novel {
 
     public void setPublishTime(Date publishTime) {
         this.publishTime = publishTime != null ? new Date(publishTime.getTime()) : null;
+    }
+
+    // Business Logic Methods - Rich Domain Model
+
+    /**
+     * Change novel status with business logic.
+     * Updates updateTime automatically.
+     */
+    public void changeStatus(NovelStatus newStatus) {
+        if (newStatus == null) {
+            throw new IllegalArgumentException("Status cannot be null");
+        }
+        this.status = newStatus.getValue();
+        updateTimestamp();
+        
+        // Set publish time if publishing
+        if (newStatus == NovelStatus.PUBLISHED && this.publishTime == null) {
+            this.publishTime = new Date();
+        }
+    }
+
+    /**
+     * Change status from current status to a new status with validation.
+     * This method allows status transitions to be controlled.
+     */
+    public void changeStatusTo(NovelStatus newStatus, NovelStatus... allowedFromStatuses) {
+        if (newStatus == null) {
+            throw new IllegalArgumentException("Status cannot be null");
+        }
+        
+        if (allowedFromStatuses != null && allowedFromStatuses.length > 0) {
+            NovelStatus currentStatus = NovelStatus.fromValue(this.status);
+            boolean allowed = false;
+            for (NovelStatus allowedStatus : allowedFromStatuses) {
+                if (currentStatus == allowedStatus) {
+                    allowed = true;
+                    break;
+                }
+            }
+            if (!allowed) {
+                throw new IllegalStateException(
+                    String.format("Cannot change status from %s to %s", 
+                        currentStatus.name(), newStatus.name()));
+            }
+        }
+        
+        changeStatus(newStatus);
+    }
+
+    /**
+     * Mark novel as published.
+     * Sets status to PUBLISHED and publish time if not already set.
+     */
+    public void publish() {
+        changeStatus(NovelStatus.PUBLISHED);
+        if (this.publishTime == null) {
+            this.publishTime = new Date();
+        }
+    }
+
+    /**
+     * Mark novel as draft.
+     */
+    public void markAsDraft() {
+        changeStatus(NovelStatus.DRAFT);
+    }
+
+    /**
+     * Submit novel for review.
+     */
+    public void submitForReview() {
+        changeStatusTo(NovelStatus.UNDER_REVIEW, NovelStatus.DRAFT);
+    }
+
+    /**
+     * Archive the novel.
+     */
+    public void archive() {
+        changeStatusTo(NovelStatus.ARCHIVED, NovelStatus.DRAFT, NovelStatus.PUBLISHED, NovelStatus.HIDDEN);
+    }
+
+    /**
+     * Unarchive the novel (change from ARCHIVED to DRAFT).
+     */
+    public void unarchive() {
+        changeStatusTo(NovelStatus.DRAFT, NovelStatus.ARCHIVED);
+    }
+
+    /**
+     * Hide the novel (from PUBLISHED to HIDDEN).
+     */
+    public void hide() {
+        changeStatusTo(NovelStatus.HIDDEN, NovelStatus.PUBLISHED);
+    }
+
+    /**
+     * Unhide the novel (from HIDDEN back to PUBLISHED).
+     */
+    public void unhide() {
+        changeStatusTo(NovelStatus.PUBLISHED, NovelStatus.HIDDEN);
+    }
+
+    /**
+     * Change status to UNDER_REVIEW when editing published/hidden novel.
+     * This is used when editing published or hidden novels.
+     */
+    public void markForReviewAfterEdit() {
+        NovelStatus currentStatus = NovelStatus.fromValue(this.status);
+        if (currentStatus == NovelStatus.PUBLISHED || currentStatus == NovelStatus.HIDDEN) {
+            changeStatus(NovelStatus.UNDER_REVIEW);
+        }
+    }
+
+    /**
+     * Mark novel as completed.
+     * Updates updateTime automatically.
+     */
+    public void markAsCompleted() {
+        this.isCompleted = true;
+        updateTimestamp();
+    }
+
+    /**
+     * Mark novel as ongoing (not completed).
+     * Updates updateTime automatically.
+     */
+    public void markAsOngoing() {
+        this.isCompleted = false;
+        updateTimestamp();
+    }
+
+    /**
+     * Set completion status.
+     * Updates updateTime automatically.
+     */
+    public void setCompletionStatus(boolean completed) {
+        this.isCompleted = completed;
+        updateTimestamp();
+    }
+
+    /**
+     * Update novel statistics (chapter count and word count).
+     * Updates updateTime automatically.
+     */
+    public void updateStatistics(int chapterCount, long wordCount) {
+        this.chapterCnt = chapterCount;
+        this.wordCnt = wordCount;
+        updateTimestamp();
+    }
+
+    /**
+     * Update novel's rating and review count.
+     * Updates updateTime automatically.
+     */
+    public void updateRatingStatistics(float avgRating, int reviewCount) {
+        this.avgRating = avgRating;
+        this.reviewCnt = reviewCount;
+        updateTimestamp();
+    }
+
+    /**
+     * Initialize a new novel with default values.
+     * This is called when creating a new novel.
+     */
+    public void initializeAsNew() {
+        Date now = new Date();
+        this.createTime = now;
+        this.updateTime = now;
+        this.status = NovelStatus.DRAFT.getValue();
+        this.isCompleted = false;
+        this.chapterCnt = 0;
+        this.wordCnt = 0L;
+        this.avgRating = 0.0f;
+        this.reviewCnt = 0;
+        this.viewCnt = 0L;
+        this.voteCnt = 0;
+        this.yuanCnt = 0.0f;
+        this.publishTime = null;
+    }
+
+    /**
+     * Update the update timestamp to current time.
+     */
+    public void updateTimestamp() {
+        this.updateTime = new Date();
+    }
+
+    /**
+     * Check if novel is in a specific status.
+     */
+    public boolean isStatus(NovelStatus status) {
+        return status != null && this.status.equals(status.getValue());
+    }
+
+    /**
+     * Check if novel can be edited.
+     */
+    public boolean canBeEdited() {
+        NovelStatus currentStatus = NovelStatus.fromValue(this.status);
+        return currentStatus == NovelStatus.DRAFT || 
+               currentStatus == NovelStatus.PUBLISHED || 
+               currentStatus == NovelStatus.HIDDEN ||
+               currentStatus == NovelStatus.UNDER_REVIEW;
+    }
+
+    /**
+     * Check if novel can be archived.
+     */
+    public boolean canBeArchived() {
+        NovelStatus currentStatus = NovelStatus.fromValue(this.status);
+        return currentStatus == NovelStatus.DRAFT || 
+               currentStatus == NovelStatus.PUBLISHED || 
+               currentStatus == NovelStatus.HIDDEN;
+    }
+
+    /**
+     * Check if novel is published.
+     */
+    public boolean isPublished() {
+        return isStatus(NovelStatus.PUBLISHED);
+    }
+
+    /**
+     * Check if novel is draft.
+     */
+    public boolean isDraft() {
+        return isStatus(NovelStatus.DRAFT);
+    }
+
+    /**
+     * Check if novel is archived.
+     */
+    public boolean isArchived() {
+        return isStatus(NovelStatus.ARCHIVED);
     }
 
     @Override
