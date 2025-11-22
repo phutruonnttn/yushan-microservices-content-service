@@ -15,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -74,20 +73,13 @@ public class NovelService {
             novel.setCoverImgUrl(convertBase64ToUrl(request.getCoverImgBase64()));
         }
         
-        novel.setStatus(NovelStatus.DRAFT.getValue());
-        novel.setIsCompleted(Boolean.TRUE.equals(request.getIsCompleted()));
-        novel.setChapterCnt(0);
-        novel.setWordCnt(0L);
-        novel.setAvgRating(0.0f);
-        novel.setReviewCnt(0);
-        novel.setViewCnt(0L);
-        novel.setVoteCnt(0);
-        novel.setYuanCnt(0.0f);
+        novel.initializeAsNew();
         
-        Date now = new Date();
-        novel.setCreateTime(now);
-        novel.setUpdateTime(now);
-        novel.setPublishTime(null);
+        if (Boolean.TRUE.equals(request.getIsCompleted())) {
+            novel.markAsCompleted();
+        } else {
+            novel.markAsOngoing();
+        }
         
         novelMapper.insertSelective(novel);
         
@@ -116,9 +108,7 @@ public class NovelService {
             return;
         }
 
-        novel.setChapterCnt(chapterCount);
-        novel.setWordCnt(wordCount);
-        novel.setUpdateTime(new Date());
+        novel.updateStatistics(chapterCount, wordCount);
 
         novelMapper.updateByPrimaryKeySelective(novel);
         
@@ -263,7 +253,7 @@ public class NovelService {
         }
         if (request.getIsCompleted() != null) {
             if (!request.getIsCompleted().equals(existing.getIsCompleted())) {
-                existing.setIsCompleted(request.getIsCompleted());
+                existing.setCompletionStatus(request.getIsCompleted());
                 updatedFields.add("isCompleted");
             }
         }
@@ -272,14 +262,12 @@ public class NovelService {
         // but we add validation here as well for safety
         if (request.getStatus() != null && !request.getStatus().trim().isEmpty()) {
             NovelStatus s = NovelStatus.fromName(request.getStatus());
-            int newStatus = s.getValue();
-            if (newStatus != existing.getStatus()) {
-                existing.setStatus(newStatus);
+            if (!existing.isStatus(s)) {
+                existing.changeStatus(s);
                 updatedFields.add("status");
                 
-                // Set publish time if publishing
+                // Publish time is set automatically if publishing
                 if (s == NovelStatus.PUBLISHED) {
-                    existing.setPublishTime(new Date());
                     updatedFields.add("publishTime");
                 }
                 changeStatus = true;
@@ -290,11 +278,11 @@ public class NovelService {
         // change status to UNDER_REVIEW
         if ((currentStatus == NovelStatus.PUBLISHED.getValue() || currentStatus == NovelStatus.HIDDEN.getValue()) 
             && changeOtherFieldsNotIsCompleted && !changeStatus) {
-            existing.setStatus(NovelStatus.UNDER_REVIEW.getValue());
+            existing.markForReviewAfterEdit();
             updatedFields.add("status");
         }
         
-        existing.setUpdateTime(new Date());
+        existing.updateTimestamp();
 
         novelMapper.updateByPrimaryKeySelective(existing);
         
@@ -344,8 +332,7 @@ public class NovelService {
             throw new IllegalArgumentException("only draft, published, or hidden novels can be archived");
         }
 
-        existing.setStatus(NovelStatus.ARCHIVED.getValue());
-        existing.setUpdateTime(new Date());
+        existing.archive();
         novelMapper.updateByPrimaryKeySelective(existing);
 
         // Invalidate all caches since novel is archived
@@ -542,12 +529,7 @@ public class NovelService {
             return; // Novel not found, skip update
         }
 
-        // Update novel statistics with provided values
-        novel.setAvgRating(avgRating);
-        novel.setReviewCnt(reviewCount);
-        
-        // Update timestamp
-        novel.setUpdateTime(new Date());
+        novel.updateRatingStatistics(avgRating, reviewCount);
         novelMapper.updateByPrimaryKeySelective(novel);
         
         // Invalidate cache since novel was updated
@@ -577,8 +559,7 @@ public class NovelService {
         }
         
         String previousStatus = NovelStatus.DRAFT.toString();
-        novel.setStatus(NovelStatus.UNDER_REVIEW.getValue());
-        novel.setUpdateTime(new Date());
+        novel.submitForReview();
         novelMapper.updateByPrimaryKeySelective(novel);
         
         // Invalidate cache since novel status changed
@@ -645,13 +626,7 @@ public class NovelService {
             throw new IllegalArgumentException(errorMessage);
         }
         
-        novel.setStatus(newStatus.getValue());
-        novel.setUpdateTime(new Date());
-        
-        // Set publish time if publishing
-        if (newStatus == NovelStatus.PUBLISHED) {
-            novel.setPublishTime(new Date());
-        }
+        novel.changeStatus(newStatus);
         
         novelMapper.updateByPrimaryKeySelective(novel);
         
@@ -825,9 +800,7 @@ public class NovelService {
                 NovelStatus.fromValue(existing.getStatus()).getDescription());
         }
 
-        // Change status from ARCHIVED to DRAFT
-        existing.setStatus(NovelStatus.DRAFT.getValue());
-        existing.setUpdateTime(new Date());
+        existing.unarchive();
         novelMapper.updateByPrimaryKeySelective(existing);
 
         // Invalidate all caches since novel status changed

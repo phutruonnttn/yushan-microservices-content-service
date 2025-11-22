@@ -143,10 +143,8 @@ public class CategoryService {
         category.setName(trimmedName);
         category.setDescription(description != null ? description.trim() : null);
         category.setSlug(slug);
-        category.setIsActive(true);
-        Date now = new Date();
-        category.setCreateTime(now);
-        category.setUpdateTime(now);
+        
+        category.initializeAsNew();
 
         categoryMapper.insertSelective(category);
 
@@ -200,7 +198,7 @@ public class CategoryService {
 
         // Update active status if provided
         if (isActive != null && !isActive.equals(existing.getIsActive())) {
-            existing.setIsActive(isActive);
+            existing.setActiveStatus(isActive);
             hasChanges = true;
         }
 
@@ -232,8 +230,7 @@ public class CategoryService {
             throw new IllegalArgumentException("Cannot delete category with active novels. Please reassign novels first.");
         }
 
-        existing.setIsActive(false);
-        existing.setUpdateTime(new Date());
+        existing.deactivate();
         int result = categoryMapper.updateByPrimaryKeySelective(existing);
         
         // Clear cache after deletion
