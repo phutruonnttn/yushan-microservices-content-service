@@ -1,6 +1,6 @@
 package com.yushan.content_service.service;
 
-import com.yushan.content_service.dao.NovelMapper;
+import com.yushan.content_service.repository.NovelRepository;
 import com.yushan.content_service.dto.common.PageResponseDTO;
 import com.yushan.content_service.dto.novel.NovelCreateRequestDTO;
 import com.yushan.content_service.dto.novel.NovelDetailResponseDTO;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 public class NovelService {
 
     @Autowired
-    private NovelMapper novelMapper;
+    private NovelRepository novelRepository;
 
     @Autowired
     private RedisUtil redisUtil;
@@ -81,7 +81,7 @@ public class NovelService {
             novel.markAsOngoing();
         }
         
-        novelMapper.insertSelective(novel);
+        novelRepository.save(novel);
         
         // Cache the new novel
         redisUtil.cacheNovel(novel.getId(), novel);
@@ -110,7 +110,7 @@ public class NovelService {
 
         novel.updateStatistics(chapterCount, wordCount);
 
-        novelMapper.updateByPrimaryKeySelective(novel);
+        novelRepository.save(novel);
         
         // Invalidate cache since novel was updated
         redisUtil.invalidateNovelCaches(novelId);
@@ -135,7 +135,7 @@ public class NovelService {
         }
         
         // Cache miss - get from database
-        Novel novel = novelMapper.selectByPrimaryKey(id);
+        Novel novel = novelRepository.findById(id);
         if (novel == null) {
             return null;
         }
@@ -161,7 +161,7 @@ public class NovelService {
         }
         
         // Cache miss - get from database
-        Novel novel = novelMapper.selectByPrimaryKey(id);
+        Novel novel = novelRepository.findById(id);
         if (novel == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -179,7 +179,7 @@ public class NovelService {
      * Get novel by UUID
      */
     public NovelDetailResponseDTO getNovelByUuid(UUID uuid) {
-        Novel novel = novelMapper.selectByUuid(uuid);
+        Novel novel = novelRepository.findByUuid(uuid);
         if (novel == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -194,7 +194,7 @@ public class NovelService {
      */
     @Transactional
     public NovelDetailResponseDTO updateNovel(Integer id, NovelUpdateRequestDTO request) {
-        Novel existing = novelMapper.selectByPrimaryKey(id);
+        Novel existing = novelRepository.findById(id);
         if (existing == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -284,7 +284,7 @@ public class NovelService {
         
         existing.updateTimestamp();
 
-        novelMapper.updateByPrimaryKeySelective(existing);
+        novelRepository.save(existing);
         
         // Invalidate caches since novel was updated
         redisUtil.invalidateNovelCaches(id);
@@ -316,7 +316,7 @@ public class NovelService {
      */
     @Transactional
     public NovelDetailResponseDTO archiveNovel(Integer id) {
-        Novel existing = novelMapper.selectByPrimaryKey(id);
+        Novel existing = novelRepository.findById(id);
         if (existing == null) {
             throw new ResourceNotFoundException("Novel not found with id: " + id);
         }
@@ -333,7 +333,7 @@ public class NovelService {
         }
 
         existing.archive();
-        novelMapper.updateByPrimaryKeySelective(existing);
+        novelRepository.save(existing);
 
         // Invalidate all caches since novel is archived
         redisUtil.invalidateNovelCaches(id);
@@ -352,7 +352,7 @@ public class NovelService {
     @Transactional
     public void incrementViewCount(Integer id, UUID userId, String userAgent, String ipAddress) {
         // Check if novel exists and is not archived
-        Novel novel = novelMapper.selectByPrimaryKey(id);
+        Novel novel = novelRepository.findById(id);
         if (novel == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -364,10 +364,10 @@ public class NovelService {
         redisUtil.incrementCachedViewCount(id);
         
         // Update database (async or batch update could be implemented here)
-        novelMapper.incrementViewCount(id);
+        novelRepository.incrementViewCount(id);
         
         // Get updated novel data from database to ensure consistency
-        Novel updatedNovel = novelMapper.selectByPrimaryKey(id);
+        Novel updatedNovel = novelRepository.findById(id);
         
         // Cache the updated novel data
         redisUtil.cacheNovel(id, updatedNovel);
@@ -437,13 +437,13 @@ public class NovelService {
 
         // Get novels with pagination
         List<Novel> novels = includeArchived 
-            ? novelMapper.selectAllNovelsWithPagination(request)
-            : novelMapper.selectNovelsWithPagination(request);
+            ? novelRepository.findAllNovelsWithPagination(request)
+            : novelRepository.findNovelsWithPagination(request);
         
         // Get total count
         long totalElements = includeArchived 
-            ? novelMapper.countAllNovels(request)
-            : novelMapper.countNovels(request);
+            ? novelRepository.countAllNovels(request)
+            : novelRepository.countNovels(request);
         
         // Convert to DTOs using batch loading to avoid N+1 problem
         List<NovelDetailResponseDTO> novelDTOs = toResponseList(novels);
@@ -459,7 +459,7 @@ public class NovelService {
         request.setPage(0);
         request.setSize(100); // Get all novels by author
         
-        List<Novel> novels = novelMapper.selectNovelsWithPagination(request);
+        List<Novel> novels = novelRepository.findNovelsWithPagination(request);
         return toResponseList(novels);
     }
 
@@ -472,7 +472,7 @@ public class NovelService {
         request.setPage(0);
         request.setSize(100); // Get all novels by category
         
-        List<Novel> novels = novelMapper.selectNovelsWithPagination(request);
+        List<Novel> novels = novelRepository.findNovelsWithPagination(request);
         return toResponseList(novels);
     }
 
@@ -480,14 +480,14 @@ public class NovelService {
      * Get novel count
      */
     public long getNovelCount(NovelSearchRequestDTO request) {
-        return novelMapper.countNovels(request);
+        return novelRepository.countNovels(request);
     }
 
     /**
      * Get novel vote count
      */
     public Integer getNovelVoteCount(Integer novelId) {
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -500,7 +500,7 @@ public class NovelService {
     @Transactional
     public void incrementVoteCount(Integer novelId) {
         // Check if novel exists and is not archived
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -509,10 +509,10 @@ public class NovelService {
         }
         
         // Increment vote count in database
-        novelMapper.incrementVoteCount(novelId);
+        novelRepository.incrementVoteCount(novelId);
         
         // Get updated novel data from database to ensure consistency
-        Novel updatedNovel = novelMapper.selectByPrimaryKey(novelId);
+        Novel updatedNovel = novelRepository.findById(novelId);
         
         // Cache the updated novel data
         redisUtil.cacheNovel(novelId, updatedNovel);
@@ -524,13 +524,13 @@ public class NovelService {
      */
     @Transactional
     public void updateNovelRatingAndCount(Integer novelId, Float avgRating, Integer reviewCount) {
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null) {
             return; // Novel not found, skip update
         }
 
         novel.updateRatingStatistics(avgRating, reviewCount);
-        novelMapper.updateByPrimaryKeySelective(novel);
+        novelRepository.save(novel);
         
         // Invalidate cache since novel was updated
         redisUtil.invalidateNovelCaches(novelId);
@@ -545,14 +545,14 @@ public class NovelService {
      */
     @Transactional
     public void updateNovelVoteCount(Integer novelId, Integer voteCount) {
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null) {
             return; // Novel not found, skip update
         }
 
         novel.setVoteCnt(voteCount);
         novel.updateTimestamp();
-        novelMapper.updateByPrimaryKeySelective(novel);
+        novelRepository.save(novel);
         
         // Invalidate cache since novel was updated
         redisUtil.invalidateNovelCaches(novelId);
@@ -565,7 +565,7 @@ public class NovelService {
      * Submit novel for review (Author only)
      */
     public NovelDetailResponseDTO submitForReview(Integer novelId, UUID userId) {
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -582,7 +582,7 @@ public class NovelService {
         
         String previousStatus = NovelStatus.DRAFT.toString();
         novel.submitForReview();
-        novelMapper.updateByPrimaryKeySelective(novel);
+        novelRepository.save(novel);
         
         // Invalidate cache since novel status changed
         redisUtil.invalidateNovelCaches(novelId);
@@ -638,7 +638,7 @@ public class NovelService {
      * Change novel status (Admin only)
      */
     private NovelDetailResponseDTO changeNovelStatus(Integer novelId, NovelStatus newStatus, NovelStatus requiredCurrentStatus, String errorMessage) {
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null) {
             throw new ResourceNotFoundException("novel not found");
         }
@@ -650,7 +650,7 @@ public class NovelService {
         
         novel.changeStatus(newStatus);
         
-        novelMapper.updateByPrimaryKeySelective(novel);
+        novelRepository.save(novel);
         
         // Invalidate cache since novel status changed
         redisUtil.invalidateNovelCaches(novelId);
@@ -797,7 +797,7 @@ public class NovelService {
             .collect(Collectors.toList());
         
         // Get novels from database
-        List<Novel> novels = novelMapper.selectByIds(uniqueIds);
+        List<Novel> novels = novelRepository.findByIds(uniqueIds);
         
         // Convert to response DTOs
         return novels.stream()
@@ -811,7 +811,7 @@ public class NovelService {
      */
     @Transactional
     public NovelDetailResponseDTO unarchiveNovel(Integer id) {
-        Novel existing = novelMapper.selectByPrimaryKey(id);
+        Novel existing = novelRepository.findById(id);
         if (existing == null) {
             throw new ResourceNotFoundException("Novel not found with id: " + id);
         }
@@ -823,7 +823,7 @@ public class NovelService {
         }
 
         existing.unarchive();
-        novelMapper.updateByPrimaryKeySelective(existing);
+        novelRepository.save(existing);
 
         // Invalidate all caches since novel status changed
         redisUtil.invalidateNovelCaches(id);
