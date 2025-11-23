@@ -1,6 +1,6 @@
 package com.yushan.content_service.service;
 
-import com.yushan.content_service.dao.CategoryMapper;
+import com.yushan.content_service.repository.CategoryRepository;
 import com.yushan.content_service.entity.Category;
 import com.yushan.content_service.util.RedisUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,7 +21,7 @@ import static org.mockito.Mockito.*;
 class CategoryServiceTest {
 
     @Mock
-    private CategoryMapper categoryMapper;
+    private CategoryRepository categoryRepository;
 
     @Mock
     private RedisUtil redisUtil;
@@ -67,7 +67,7 @@ class CategoryServiceTest {
     @Test
     void getAllCategories_ShouldReturnAllCategories() {
         // Given
-        when(categoryMapper.selectAll()).thenReturn(testCategories);
+        when(categoryRepository.findAll()).thenReturn(testCategories);
 
         // When
         List<Category> result = categoryService.getAllCategories();
@@ -75,7 +75,7 @@ class CategoryServiceTest {
         // Then
         assertThat(result).hasSize(3);
         assertThat(result).containsExactlyInAnyOrderElementsOf(testCategories);
-        verify(categoryMapper).selectAll();
+        verify(categoryRepository).findAll();
     }
 
     @Test
@@ -90,14 +90,14 @@ class CategoryServiceTest {
         assertThat(result).hasSize(3);
         assertThat(result).containsExactlyInAnyOrderElementsOf(testCategories);
         verify(redisUtil).getCachedCategories("all", List.class);
-        verify(categoryMapper, never()).selectAll();
+        verify(categoryRepository, never()).findAll();
     }
 
     @Test
     void getActiveCategories_ShouldReturnOnlyActiveCategories() {
         // Given
         List<Category> activeCategories = Arrays.asList(testCategories.get(0), testCategories.get(1));
-        when(categoryMapper.selectActiveCategories()).thenReturn(activeCategories);
+        when(categoryRepository.findActiveCategories()).thenReturn(activeCategories);
 
         // When
         List<Category> result = categoryService.getActiveCategories();
@@ -105,7 +105,7 @@ class CategoryServiceTest {
         // Then
         assertThat(result).hasSize(2);
         assertThat(result).allMatch(Category::getIsActive);
-        verify(categoryMapper).selectActiveCategories();
+        verify(categoryRepository).findActiveCategories();
     }
 
     @Test
@@ -121,13 +121,13 @@ class CategoryServiceTest {
         assertThat(result).hasSize(2);
         assertThat(result).allMatch(Category::getIsActive);
         verify(redisUtil).getCachedCategories("active", List.class);
-        verify(categoryMapper, never()).selectActiveCategories();
+        verify(categoryRepository, never()).findActiveCategories();
     }
 
     @Test
     void getCategoryById_ShouldReturnCategory() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(testCategory);
+        when(categoryRepository.findById(1)).thenReturn(testCategory);
 
         // When
         Category result = categoryService.getCategoryById(1);
@@ -136,7 +136,7 @@ class CategoryServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1);
         assertThat(result.getName()).isEqualTo("Fantasy");
-        verify(categoryMapper).selectByPrimaryKey(1);
+        verify(categoryRepository).findById(1);
     }
 
     @Test
@@ -151,13 +151,13 @@ class CategoryServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1);
         verify(redisUtil).getCachedCategory(1, Category.class);
-        verify(categoryMapper, never()).selectByPrimaryKey(1);
+        verify(categoryRepository, never()).findById(1);
     }
 
     @Test
     void getCategoryById_ShouldThrowExceptionWhenNotFound() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(999)).thenReturn(null);
+        when(categoryRepository.findById(999)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.getCategoryById(999))
@@ -176,7 +176,7 @@ class CategoryServiceTest {
     @Test
     void getCategoryBySlug_ShouldReturnCategory() {
         // Given
-        when(categoryMapper.selectBySlug("fantasy")).thenReturn(testCategory);
+        when(categoryRepository.findBySlug("fantasy")).thenReturn(testCategory);
 
         // When
         Category result = categoryService.getCategoryBySlug("fantasy");
@@ -184,7 +184,7 @@ class CategoryServiceTest {
         // Then
         assertThat(result).isNotNull();
         assertThat(result.getSlug()).isEqualTo("fantasy");
-        verify(categoryMapper).selectBySlug("fantasy");
+        verify(categoryRepository).findBySlug("fantasy");
     }
 
     @Test
@@ -199,13 +199,13 @@ class CategoryServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getSlug()).isEqualTo("fantasy");
         verify(redisUtil).getCachedCategoryBySlug("fantasy", Category.class);
-        verify(categoryMapper, never()).selectBySlug("fantasy");
+        verify(categoryRepository, never()).findBySlug("fantasy");
     }
 
     @Test
     void getCategoryBySlug_ShouldThrowExceptionWhenNotFound() {
         // Given
-        when(categoryMapper.selectBySlug("nonexistent")).thenReturn(null);
+        when(categoryRepository.findBySlug("nonexistent")).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.getCategoryBySlug("nonexistent"))
@@ -238,11 +238,11 @@ class CategoryServiceTest {
         newCategory.setSlug("sci-fi");
         newCategory.setIsActive(true);
 
-        when(categoryMapper.selectByName("Sci-Fi")).thenReturn(null);
-        when(categoryMapper.insertSelective(any(Category.class))).thenAnswer(invocation -> {
+        when(categoryRepository.findByName("Sci-Fi")).thenReturn(null);
+        when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> {
             Category category = invocation.getArgument(0);
             category.setId(4); // Simulate auto-generated ID
-            return 1;
+            return category;
         });
 
         // When
@@ -256,15 +256,15 @@ class CategoryServiceTest {
         assertThat(result.getIsActive()).isTrue();
         assertThat(result.getId()).isNotNull();
 
-        verify(categoryMapper).selectByName("Sci-Fi");
-        verify(categoryMapper).insertSelective(any(Category.class));
+        verify(categoryRepository).findByName("Sci-Fi");
+        verify(categoryRepository).save(any(Category.class));
         verify(redisUtil).invalidateCategoryCaches();
     }
 
     @Test
     void createCategory_ShouldThrowExceptionWhenNameExists() {
         // Given
-        when(categoryMapper.selectByName("Fantasy")).thenReturn(testCategory);
+        when(categoryRepository.findByName("Fantasy")).thenReturn(testCategory);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.createCategory("Fantasy", "Description"))
@@ -298,8 +298,8 @@ class CategoryServiceTest {
         existingCategory.setSlug("fantasy");
         existingCategory.setIsActive(true);
 
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(existingCategory);
-        when(categoryMapper.updateByPrimaryKeySelective(any(Category.class))).thenReturn(1);
+        when(categoryRepository.findById(1)).thenReturn(existingCategory);
+        when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // When
         Category result = categoryService.updateCategory(1, "Fantasy", "New description", true);
@@ -310,15 +310,15 @@ class CategoryServiceTest {
         assertThat(result.getDescription()).isEqualTo("New description");
         assertThat(result.getIsActive()).isTrue();
 
-        verify(categoryMapper).selectByPrimaryKey(1);
-        verify(categoryMapper).updateByPrimaryKeySelective(any(Category.class));
+        verify(categoryRepository).findById(1);
+        verify(categoryRepository).save(any(Category.class));
         verify(redisUtil).invalidateCategoryCaches();
     }
 
     @Test
     void updateCategory_ShouldThrowExceptionWhenCategoryNotFound() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(999)).thenReturn(null);
+        when(categoryRepository.findById(999)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.updateCategory(999, "Name", "Description", true))
@@ -337,8 +337,8 @@ class CategoryServiceTest {
         anotherCategory.setId(2);
         anotherCategory.setName("Romance");
 
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(existingCategory);
-        when(categoryMapper.selectByNameExcludingId("Romance", 1)).thenReturn(anotherCategory);
+        when(categoryRepository.findById(1)).thenReturn(existingCategory);
+        when(categoryRepository.findByNameExcludingId("Romance", 1)).thenReturn(anotherCategory);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.updateCategory(1, "Romance", "Description", true))
@@ -349,25 +349,25 @@ class CategoryServiceTest {
     @Test
     void deleteCategory_ShouldSoftDeleteCategory() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(testCategory);
-        when(categoryMapper.countActiveNovelsByCategory(1)).thenReturn(0);
-        when(categoryMapper.updateByPrimaryKeySelective(any(Category.class))).thenReturn(1);
+        when(categoryRepository.findById(1)).thenReturn(testCategory);
+        when(categoryRepository.countActiveNovelsByCategory(1)).thenReturn(0L);
+        when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // When
         boolean result = categoryService.deleteCategory(1);
 
         // Then
         assertThat(result).isTrue();
-        verify(categoryMapper).selectByPrimaryKey(1);
-        verify(categoryMapper).countActiveNovelsByCategory(1);
-        verify(categoryMapper).updateByPrimaryKeySelective(any(Category.class));
+        verify(categoryRepository).findById(1);
+        verify(categoryRepository).countActiveNovelsByCategory(1);
+        verify(categoryRepository).save(any(Category.class));
         verify(redisUtil).invalidateCategoryCaches();
     }
 
     @Test
     void deleteCategory_ShouldThrowExceptionWhenCategoryNotFound() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(999)).thenReturn(null);
+        when(categoryRepository.findById(999)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.deleteCategory(999))
@@ -378,25 +378,25 @@ class CategoryServiceTest {
     @Test
     void hardDeleteCategory_ShouldPermanentlyDeleteCategory() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(testCategory);
-        when(categoryMapper.countNovelsByCategory(1)).thenReturn(0);
-        when(categoryMapper.deleteByPrimaryKey(1)).thenReturn(1);
+        when(categoryRepository.findById(1)).thenReturn(testCategory);
+        when(categoryRepository.countNovelsByCategory(1)).thenReturn(0L);
+        doNothing().when(categoryRepository).delete(1);
 
         // When
         boolean result = categoryService.hardDeleteCategory(1);
 
         // Then
         assertThat(result).isTrue();
-        verify(categoryMapper).selectByPrimaryKey(1);
-        verify(categoryMapper).countNovelsByCategory(1);
-        verify(categoryMapper).deleteByPrimaryKey(1);
+        verify(categoryRepository).findById(1);
+        verify(categoryRepository).countNovelsByCategory(1);
+        verify(categoryRepository).delete(1);
         verify(redisUtil).invalidateCategoryCaches();
     }
 
     @Test
     void hardDeleteCategory_ShouldThrowExceptionWhenCategoryNotFound() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(999)).thenReturn(null);
+        when(categoryRepository.findById(999)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.hardDeleteCategory(999))
@@ -407,8 +407,8 @@ class CategoryServiceTest {
     @Test
     void hardDeleteCategory_ShouldThrowExceptionWhenCategoryHasNovels() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(testCategory);
-        when(categoryMapper.countNovelsByCategory(1)).thenReturn(5);
+        when(categoryRepository.findById(1)).thenReturn(testCategory);
+        when(categoryRepository.countNovelsByCategory(1)).thenReturn(5L);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.hardDeleteCategory(1))
@@ -417,29 +417,29 @@ class CategoryServiceTest {
     }
 
     @Test
-    void hardDeleteCategory_ShouldReturnFalseWhenDeleteFails() {
+    void hardDeleteCategory_ShouldReturnTrueWhenDeleteSucceeds() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(testCategory);
-        when(categoryMapper.countNovelsByCategory(1)).thenReturn(0);
-        when(categoryMapper.deleteByPrimaryKey(1)).thenReturn(0);
+        when(categoryRepository.findById(1)).thenReturn(testCategory);
+        when(categoryRepository.countNovelsByCategory(1)).thenReturn(0L);
+        doNothing().when(categoryRepository).delete(1);
 
         // When
         boolean result = categoryService.hardDeleteCategory(1);
 
         // Then
-        assertThat(result).isFalse();
-        verify(categoryMapper).selectByPrimaryKey(1);
-        verify(categoryMapper).countNovelsByCategory(1);
-        verify(categoryMapper).deleteByPrimaryKey(1);
+        assertThat(result).isTrue();
+        verify(categoryRepository).findById(1);
+        verify(categoryRepository).countNovelsByCategory(1);
+        verify(categoryRepository).delete(1);
         verify(redisUtil).invalidateCategoryCaches();
     }
 
     @Test
     void getCategoryStatistics_ShouldReturnStatistics() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(1)).thenReturn(testCategory);
-        when(categoryMapper.countNovelsByCategory(1)).thenReturn(8);
-        when(categoryMapper.countActiveNovelsByCategory(1)).thenReturn(5);
+        when(categoryRepository.findById(1)).thenReturn(testCategory);
+        when(categoryRepository.countNovelsByCategory(1)).thenReturn(8L);
+        when(categoryRepository.countActiveNovelsByCategory(1)).thenReturn(5L);
 
         // When
         Map<String, Object> result = categoryService.getCategoryStatistics(1);
@@ -447,18 +447,18 @@ class CategoryServiceTest {
         // Then
         assertThat(result).isNotNull();
         assertThat(result.get("category")).isNotNull();
-        assertThat(result.get("totalNovels")).isEqualTo(8);
-        assertThat(result.get("activeNovels")).isEqualTo(5);
+        assertThat(result.get("totalNovels")).isEqualTo(8L);
+        assertThat(result.get("activeNovels")).isEqualTo(5L);
 
-        verify(categoryMapper).selectByPrimaryKey(1);
-        verify(categoryMapper).countNovelsByCategory(1);
-        verify(categoryMapper).countActiveNovelsByCategory(1);
+        verify(categoryRepository).findById(1);
+        verify(categoryRepository).countNovelsByCategory(1);
+        verify(categoryRepository).countActiveNovelsByCategory(1);
     }
 
     @Test
     void getCategoryStatistics_ShouldThrowExceptionWhenCategoryNotFound() {
         // Given
-        when(categoryMapper.selectByPrimaryKey(999)).thenReturn(null);
+        when(categoryRepository.findById(999)).thenReturn(null);
 
         // When & Then
         assertThatThrownBy(() -> categoryService.getCategoryStatistics(999))
@@ -471,7 +471,7 @@ class CategoryServiceTest {
         // Given
         List<Integer> categoryIds = Arrays.asList(1, 2);
         List<Category> categories = Arrays.asList(testCategories.get(0), testCategories.get(1));
-        when(categoryMapper.selectByIds(categoryIds)).thenReturn(categories);
+        when(categoryRepository.findByIds(categoryIds)).thenReturn(categories);
 
         // When
         Map<Integer, String> result = categoryService.getCategoryMapByIds(categoryIds);
@@ -483,21 +483,21 @@ class CategoryServiceTest {
         assertThat(result.get(1)).isEqualTo("Fantasy");
         assertThat(result.get(2)).isEqualTo("Romance");
 
-        verify(categoryMapper).selectByIds(categoryIds);
+        verify(categoryRepository).findByIds(categoryIds);
     }
 
     @Test
     void getCategoryMapByIds_ShouldReturnEmptyMapWhenNoCategories() {
         // Given
         List<Integer> categoryIds = Arrays.asList(999, 998);
-        when(categoryMapper.selectByIds(categoryIds)).thenReturn(Collections.emptyList());
+        when(categoryRepository.findByIds(categoryIds)).thenReturn(Collections.emptyList());
 
         // When
         Map<Integer, String> result = categoryService.getCategoryMapByIds(categoryIds);
 
         // Then
         assertThat(result).isEmpty();
-        verify(categoryMapper).selectByIds(categoryIds);
+        verify(categoryRepository).findByIds(categoryIds);
     }
 
     @Test

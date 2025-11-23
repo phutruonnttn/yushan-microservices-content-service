@@ -7,8 +7,8 @@ import com.yushan.content_service.entity.elasticsearch.ChapterDocument;
 import com.yushan.content_service.dto.novel.NovelSearchRequestDTO;
 import com.yushan.content_service.repository.elasticsearch.NovelElasticsearchRepository;
 import com.yushan.content_service.repository.elasticsearch.ChapterElasticsearchRepository;
-import com.yushan.content_service.dao.NovelMapper;
-import com.yushan.content_service.dao.ChapterMapper;
+import com.yushan.content_service.repository.NovelRepository;
+import com.yushan.content_service.repository.ChapterRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -32,10 +32,10 @@ public class ElasticsearchIndexService {
     private ChapterElasticsearchRepository chapterElasticsearchRepository;
 
     @Autowired
-    private NovelMapper novelMapper;
+    private NovelRepository novelRepository;
 
     @Autowired
-    private ChapterMapper chapterMapper;
+    private ChapterRepository chapterRepository;
 
     /**
      * Index all published novels to Elasticsearch
@@ -47,7 +47,7 @@ public class ElasticsearchIndexService {
         request.setPage(0);
         request.setSize(10000); // Large number to get all
         request.setStatus("PUBLISHED"); // Only published novels
-        List<Novel> novels = novelMapper.selectNovelsWithPagination(request);
+        List<Novel> novels = novelRepository.findNovelsWithPagination(request);
         
         // Convert to Elasticsearch documents
         List<NovelDocument> documents = novels.stream()
@@ -64,7 +64,7 @@ public class ElasticsearchIndexService {
     @Transactional(readOnly = true)
     public void indexAllChapters() {
         // Get all published chapters from database
-        List<Chapter> chapters = chapterMapper.selectPublishedChapters();
+        List<Chapter> chapters = chapterRepository.findPublishedChapters();
         
         // Convert to Elasticsearch documents
         List<ChapterDocument> documents = chapters.stream()
@@ -79,7 +79,7 @@ public class ElasticsearchIndexService {
      * Index a specific novel to Elasticsearch
      */
     public void indexNovel(Integer novelId) {
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel != null) {
             NovelDocument document = convertToNovelDocument(novel);
             novelElasticsearchRepository.save(document);
@@ -90,7 +90,7 @@ public class ElasticsearchIndexService {
      * Index a specific chapter to Elasticsearch
      */
     public void indexChapter(Integer chapterId) {
-        Chapter chapter = chapterMapper.selectByPrimaryKey(chapterId);
+        Chapter chapter = chapterRepository.findById(chapterId);
         if (chapter != null) {
             ChapterDocument document = convertToChapterDocument(chapter);
             chapterElasticsearchRepository.save(document);

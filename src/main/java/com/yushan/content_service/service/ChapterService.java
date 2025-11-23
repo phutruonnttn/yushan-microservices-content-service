@@ -1,6 +1,6 @@
 package com.yushan.content_service.service;
 
-import com.yushan.content_service.dao.ChapterMapper;
+import com.yushan.content_service.repository.ChapterRepository;
 import com.yushan.content_service.dto.chapter.*;
 import com.yushan.content_service.dto.common.PageResponseDTO;
 import com.yushan.content_service.entity.Chapter;
@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 public class ChapterService {
 
     @Autowired
-    private ChapterMapper chapterMapper;
+    private ChapterRepository chapterRepository;
 
     @Autowired
     private NovelService novelService;
@@ -47,7 +47,7 @@ public class ChapterService {
         }
 
         // Validate chapter number doesn't exist
-        if (chapterMapper.existsByNovelIdAndChapterNumber(req.getNovelId(), req.getChapterNumber())) {
+        if (chapterRepository.existsByNovelIdAndChapterNumber(req.getNovelId(), req.getChapterNumber())) {
             throw new IllegalArgumentException("chapter number already exists for this novel");
         }
 
@@ -95,7 +95,7 @@ public class ChapterService {
             chapter.setPublishTime(req.getPublishTime());
         }
 
-        chapterMapper.insertSelective(chapter);
+        chapterRepository.save(chapter);
 
         // Update novel's chapter count and word count
         updateNovelStatistics(req.getNovelId());
@@ -135,7 +135,7 @@ public class ChapterService {
 
         for (ChapterBatchCreateRequestDTO.ChapterData data : req.getChapters()) {
             // Validate chapter number doesn't exist
-            if (chapterMapper.existsByNovelIdAndChapterNumber(req.getNovelId(), data.getChapterNumber())) {
+            if (chapterRepository.existsByNovelIdAndChapterNumber(req.getNovelId(), data.getChapterNumber())) {
                 throw new IllegalArgumentException("chapter number " + data.getChapterNumber() + " already exists");
             }
 
@@ -185,7 +185,7 @@ public class ChapterService {
             chapters.add(chapter);
         }
 
-        chapterMapper.batchInsert(chapters);
+        chapterRepository.batchInsert(chapters);
 
         // Update novel's chapter count and word count
         updateNovelStatistics(req.getNovelId());
@@ -202,7 +202,7 @@ public class ChapterService {
         }
 
         // Cache miss - get from database
-        Chapter chapter = chapterMapper.selectByUuid(uuid);
+        Chapter chapter = chapterRepository.findByUuid(uuid);
         if (chapter == null) {
             throw new ResourceNotFoundException("chapter not found");
         }
@@ -215,8 +215,8 @@ public class ChapterService {
         ChapterDetailResponseDTO response = toDetailResponse(chapter);
 
         // Get navigation links
-        Chapter nextChapter = chapterMapper.selectNextChapter(chapter.getNovelId(), chapter.getChapterNumber());
-        Chapter prevChapter = chapterMapper.selectPreviousChapter(chapter.getNovelId(), chapter.getChapterNumber());
+        Chapter nextChapter = chapterRepository.findNextChapter(chapter.getNovelId(), chapter.getChapterNumber());
+        Chapter prevChapter = chapterRepository.findPreviousChapter(chapter.getNovelId(), chapter.getChapterNumber());
 
         if (nextChapter != null) {
             response.setNextChapterUuid(nextChapter.getUuid());
@@ -239,7 +239,7 @@ public class ChapterService {
         }
 
         // Cache miss - get from database
-        Chapter chapter = chapterMapper.selectByNovelIdAndChapterNumber(novelId, chapterNumber);
+        Chapter chapter = chapterRepository.findByNovelIdAndChapterNumber(novelId, chapterNumber);
         if (chapter == null || Boolean.FALSE.equals(chapter.getIsValid())) {
             throw new ResourceNotFoundException("chapter not found");
         }
@@ -264,7 +264,7 @@ public class ChapterService {
             .collect(Collectors.toList());
         
         // Get chapters from database
-        List<Chapter> chapters = chapterMapper.selectByIds(uniqueIds);
+        List<Chapter> chapters = chapterRepository.findByIds(uniqueIds);
         
         // Convert to response DTOs
         return chapters.stream()
@@ -306,11 +306,11 @@ public class ChapterService {
         long totalCount;
 
         if (Boolean.TRUE.equals(publishedOnly)) {
-            chapters = chapterMapper.selectPublishedByNovelIdWithPagination(novelId, offset, pageSize);
-            totalCount = chapterMapper.countPublishedByNovelId(novelId);
+            chapters = chapterRepository.findPublishedByNovelIdWithPagination(novelId, offset, pageSize);
+            totalCount = chapterRepository.countPublishedByNovelId(novelId);
         } else {
-            chapters = chapterMapper.selectByNovelIdWithPagination(novelId, offset, pageSize);
-            totalCount = chapterMapper.countByNovelId(novelId);
+            chapters = chapterRepository.findByNovelIdWithPagination(novelId, offset, pageSize);
+            totalCount = chapterRepository.countByNovelId(novelId);
         }
 
         List<ChapterSummaryDTO> summaries = chapters.stream()
@@ -340,20 +340,20 @@ public class ChapterService {
         }
 
         // Cache miss - calculate statistics
-        long totalChapters = chapterMapper.countByNovelId(novelId);
-        long publishedChapters = chapterMapper.countPublishedByNovelId(novelId);
+        long totalChapters = chapterRepository.countByNovelId(novelId);
+        long publishedChapters = chapterRepository.countPublishedByNovelId(novelId);
 
-        List<Chapter> drafts = chapterMapper.selectDraftsByNovelId(novelId);
-        List<Chapter> scheduled = chapterMapper.selectScheduledByNovelId(novelId);
+        List<Chapter> drafts = chapterRepository.findDraftsByNovelId(novelId);
+        List<Chapter> scheduled = chapterRepository.findScheduledByNovelId(novelId);
 
-        List<Chapter> allChapters = chapterMapper.selectByNovelId(novelId);
+        List<Chapter> allChapters = chapterRepository.findByNovelId(novelId);
 
         long premiumChapters = allChapters.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsPremium()))
                 .count();
         long freeChapters = totalChapters - premiumChapters;
 
-        long totalWordCount = chapterMapper.sumWordCountByNovelId(novelId);
+        long totalWordCount = chapterRepository.sumWordCountByNovelId(novelId);
         long totalViewCount = allChapters.stream()
                 .mapToLong(Chapter::getViewCnt)
                 .sum();
@@ -363,7 +363,7 @@ public class ChapterService {
                 .map(c -> c.getYuanCost() * c.getViewCnt())
                 .reduce(0f, Float::sum);
 
-        Integer maxChapterNumber = chapterMapper.selectMaxChapterNumberByNovelId(novelId);
+        Integer maxChapterNumber = chapterRepository.findMaxChapterNumberByNovelId(novelId);
 
         ChapterStatisticsResponseDTO response = new ChapterStatisticsResponseDTO(
                 novelId,
@@ -415,7 +415,7 @@ public class ChapterService {
 
     @Transactional
     public ChapterDetailResponseDTO updateChapter(UUID userId, ChapterUpdateRequestDTO req) {
-        Chapter existing = chapterMapper.selectByUuid(req.getUuid());
+        Chapter existing = chapterRepository.findByUuid(req.getUuid());
         if (existing == null || Boolean.FALSE.equals(existing.getIsValid())) {
             throw new ResourceNotFoundException("chapter not found");
         }
@@ -469,7 +469,7 @@ public class ChapterService {
         }
 
         if (hasChanges) {
-            chapterMapper.updateByPrimaryKeySelective(existing);
+            chapterRepository.save(existing);
 
             // Update novel statistics if word count changed
             if (req.getWordCnt() != null || req.getContent() != null) {
@@ -500,7 +500,7 @@ public class ChapterService {
 
     @Transactional
     public void publishChapter(UUID userId, ChapterPublishRequestDTO req) {
-        Chapter chapter = chapterMapper.selectByUuid(req.getUuid());
+        Chapter chapter = chapterRepository.findByUuid(req.getUuid());
         if (chapter == null || Boolean.FALSE.equals(chapter.getIsValid())) {
             throw new ResourceNotFoundException("chapter not found");
         }
@@ -522,7 +522,7 @@ public class ChapterService {
             chapter.setValidityStatus(req.getIsValid());
         }
 
-        chapterMapper.updateByPrimaryKeySelective(chapter);
+        chapterRepository.save(chapter);
 
         // Update novel statistics
         updateNovelStatistics(chapter.getNovelId());
@@ -553,13 +553,13 @@ public class ChapterService {
             throw new IllegalArgumentException("only the author can publish chapters");
         }
 
-        List<Chapter> chapters = chapterMapper.selectByNovelId(novelId);
+        List<Chapter> chapters = chapterRepository.findByNovelId(novelId);
         List<Integer> ids = chapters.stream()
                 .map(Chapter::getId)
                 .collect(Collectors.toList());
 
         if (!ids.isEmpty()) {
-            chapterMapper.updatePublishStatusByIds(ids, isValid);
+            chapterRepository.updatePublishStatusByIds(ids, isValid);
             
             // Update novel statistics
             updateNovelStatistics(novelId);
@@ -571,13 +571,13 @@ public class ChapterService {
 
     @Transactional
     public void incrementViewCount(UUID uuid, UUID userId, String userAgent, String ipAddress, String referrer) {
-        Chapter chapter = chapterMapper.selectByUuid(uuid);
+        Chapter chapter = chapterRepository.findByUuid(uuid);
         if (chapter == null || Boolean.FALSE.equals(chapter.getIsValid())) {
             throw new ResourceNotFoundException("chapter not found");
         }
         
         // Increment view count
-        chapterMapper.incrementViewCount(chapter.getId());
+        chapterRepository.incrementViewCount(chapter.getId());
         
         // Publish chapter view event
         try {
@@ -593,7 +593,7 @@ public class ChapterService {
 
     @Transactional
     public void deleteChapter(UUID userId, UUID uuid) {
-        Chapter chapter = chapterMapper.selectByUuid(uuid);
+        Chapter chapter = chapterRepository.findByUuid(uuid);
         if (chapter == null) {
             throw new ResourceNotFoundException("chapter not found");
         }
@@ -604,7 +604,7 @@ public class ChapterService {
             throw new IllegalArgumentException("only the author can delete chapters");
         }
 
-        chapterMapper.softDeleteByUuid(uuid);
+        chapterRepository.softDeleteByUuid(uuid);
 
         // Update novel statistics
         updateNovelStatistics(chapter.getNovelId());
@@ -632,9 +632,9 @@ public class ChapterService {
             throw new IllegalArgumentException("only the author can delete chapters");
         }
 
-        List<Chapter> chapters = chapterMapper.selectByNovelId(novelId);
+        List<Chapter> chapters = chapterRepository.findByNovelId(novelId);
         for (Chapter chapter : chapters) {
-            chapterMapper.softDeleteByPrimaryKey(chapter.getId());
+            chapterRepository.softDelete(chapter.getId());
             // Auto-remove from Elasticsearch
             if (elasticsearchAutoIndexService != null) {
                 elasticsearchAutoIndexService.onChapterDeleted(chapter.getId());
@@ -649,31 +649,31 @@ public class ChapterService {
     }
 
     public UUID getNextChapterUuid(UUID currentChapterUuid) {
-        Chapter current = chapterMapper.selectByUuid(currentChapterUuid);
+        Chapter current = chapterRepository.findByUuid(currentChapterUuid);
         if (current == null) {
             return null;
         }
 
-        Chapter next = chapterMapper.selectNextChapter(current.getNovelId(), current.getChapterNumber());
+        Chapter next = chapterRepository.findNextChapter(current.getNovelId(), current.getChapterNumber());
         return next != null ? next.getUuid() : null;
     }
 
     public UUID getPreviousChapterUuid(UUID currentChapterUuid) {
-        Chapter current = chapterMapper.selectByUuid(currentChapterUuid);
+        Chapter current = chapterRepository.findByUuid(currentChapterUuid);
         if (current == null) {
             return null;
         }
 
-        Chapter prev = chapterMapper.selectPreviousChapter(current.getNovelId(), current.getChapterNumber());
+        Chapter prev = chapterRepository.findPreviousChapter(current.getNovelId(), current.getChapterNumber());
         return prev != null ? prev.getUuid() : null;
     }
 
     public boolean chapterExists(Integer novelId, Integer chapterNumber) {
-        return chapterMapper.existsByNovelIdAndChapterNumber(novelId, chapterNumber);
+        return chapterRepository.existsByNovelIdAndChapterNumber(novelId, chapterNumber);
     }
 
     public Integer getNextAvailableChapterNumber(Integer novelId) {
-        Integer maxChapter = chapterMapper.selectMaxChapterNumberByNovelId(novelId);
+        Integer maxChapter = chapterRepository.findMaxChapterNumberByNovelId(novelId);
         return maxChapter != null ? maxChapter + 1 : 1;
     }
 
@@ -685,8 +685,8 @@ public class ChapterService {
     @Transactional
     public void updateNovelStatistics(Integer novelId) {
         // Count only published chapters (is_valid = true and publish_time <= NOW())
-        long chapterCount = chapterMapper.countPublishedByNovelId(novelId);
-        long wordCount = chapterMapper.sumPublishedWordCountByNovelId(novelId);
+        long chapterCount = chapterRepository.countPublishedByNovelId(novelId);
+        long wordCount = chapterRepository.sumPublishedWordCountByNovelId(novelId);
 
         // Use NovelService to update statistics
         novelService.updateNovelStatistics(novelId, (int) chapterCount, wordCount);
@@ -697,12 +697,12 @@ public class ChapterService {
      */
     @Transactional
     public void adminDeleteChapter(UUID uuid) {
-        Chapter chapter = chapterMapper.selectByUuid(uuid);
+        Chapter chapter = chapterRepository.findByUuid(uuid);
         if (chapter == null) {
             throw new ResourceNotFoundException("chapter not found");
         }
 
-        chapterMapper.softDeleteByUuid(uuid);
+        chapterRepository.softDeleteByUuid(uuid);
 
         // Update novel statistics
         updateNovelStatistics(chapter.getNovelId());
@@ -729,9 +729,9 @@ public class ChapterService {
             throw new ResourceNotFoundException("novel not found");
         }
 
-        List<Chapter> chapters = chapterMapper.selectByNovelId(novelId);
+        List<Chapter> chapters = chapterRepository.findByNovelId(novelId);
         for (Chapter chapter : chapters) {
-            chapterMapper.softDeleteByPrimaryKey(chapter.getId());
+            chapterRepository.softDelete(chapter.getId());
         }
 
         // Update novel statistics
@@ -794,10 +794,10 @@ public class ChapterService {
      */
     public PageResponseDTO<ChapterSummaryDTO> searchChapters(ChapterSearchRequestDTO searchRequest) {
         // Get chapters with search criteria
-        List<Chapter> chapters = chapterMapper.selectChaptersWithSearch(searchRequest);
+        List<Chapter> chapters = chapterRepository.findChaptersWithSearch(searchRequest);
         
         // Get total count
-        long totalCount = chapterMapper.countChaptersWithSearch(searchRequest);
+        long totalCount = chapterRepository.countChaptersWithSearch(searchRequest);
         
         // Convert to response DTOs
         List<ChapterSummaryDTO> chapterSummaries = chapters.stream()

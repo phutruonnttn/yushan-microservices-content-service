@@ -1,6 +1,7 @@
 package com.yushan.content_service.service;
 
-import com.yushan.content_service.dao.ChapterMapper;
+import com.yushan.content_service.repository.ChapterRepository;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.yushan.content_service.dto.chapter.*;
 import com.yushan.content_service.dto.common.PageResponseDTO;
 import com.yushan.content_service.entity.Chapter;
@@ -25,7 +26,7 @@ import static org.mockito.Mockito.*;
  */
 public class ChapterServiceTest {
 
-    private ChapterMapper chapterMapper;
+    private ChapterRepository chapterRepository;
     private RedisUtil redisUtil;
     private KafkaEventProducerService kafkaEventProducerService;
     private NovelService novelService;
@@ -34,36 +35,19 @@ public class ChapterServiceTest {
 
     @BeforeEach
     void setUp() {
-        chapterMapper = Mockito.mock(ChapterMapper.class);
+        chapterRepository = Mockito.mock(ChapterRepository.class);
         redisUtil = Mockito.mock(RedisUtil.class);
         kafkaEventProducerService = Mockito.mock(KafkaEventProducerService.class);
         novelService = Mockito.mock(NovelService.class);
         elasticsearchAutoIndexService = Mockito.mock(ElasticsearchAutoIndexService.class);
 
         chapterService = new ChapterService();
-        try {
-            java.lang.reflect.Field f1 = ChapterService.class.getDeclaredField("chapterMapper");
-            f1.setAccessible(true);
-            f1.set(chapterService, chapterMapper);
-            
-            java.lang.reflect.Field f2 = ChapterService.class.getDeclaredField("redisUtil");
-            f2.setAccessible(true);
-            f2.set(chapterService, redisUtil);
-            
-            java.lang.reflect.Field f3 = ChapterService.class.getDeclaredField("kafkaEventProducerService");
-            f3.setAccessible(true);
-            f3.set(chapterService, kafkaEventProducerService);
-            
-            java.lang.reflect.Field f4 = ChapterService.class.getDeclaredField("novelService");
-            f4.setAccessible(true);
-            f4.set(chapterService, novelService);
-            
-            java.lang.reflect.Field f5 = ChapterService.class.getDeclaredField("elasticsearchAutoIndexService");
-            f5.setAccessible(true);
-            f5.set(chapterService, elasticsearchAutoIndexService);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to inject dependencies", e);
-        }
+        // Inject dependencies using ReflectionTestUtils
+        ReflectionTestUtils.setField(chapterService, "chapterRepository", chapterRepository);
+        ReflectionTestUtils.setField(chapterService, "redisUtil", redisUtil);
+        ReflectionTestUtils.setField(chapterService, "kafkaEventProducerService", kafkaEventProducerService);
+        ReflectionTestUtils.setField(chapterService, "novelService", novelService);
+        ReflectionTestUtils.setField(chapterService, "elasticsearchAutoIndexService", elasticsearchAutoIndexService);
     }
 
     @Test
@@ -85,7 +69,7 @@ public class ChapterServiceTest {
         chapter.setUpdateTime(new Date());
         chapter.setPublishTime(new Date());
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(chapter);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(chapter);
 
         // When
         ChapterDetailResponseDTO result = chapterService.getChapterByUuid(chapterUuid);
@@ -96,7 +80,7 @@ public class ChapterServiceTest {
         assertEquals("Test content", result.getContent());
         assertEquals(10, result.getWordCnt());
 
-        verify(chapterMapper).selectByUuid(chapterUuid);
+        verify(chapterRepository).findByUuid(chapterUuid);
     }
 
     @Test
@@ -104,14 +88,14 @@ public class ChapterServiceTest {
         // Given
         UUID chapterUuid = UUID.randomUUID();
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(null);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(null);
 
         // When & Then
         assertThrows(ResourceNotFoundException.class, () -> {
             chapterService.getChapterByUuid(chapterUuid);
         });
 
-        verify(chapterMapper).selectByUuid(chapterUuid);
+        verify(chapterRepository).findByUuid(chapterUuid);
     }
 
     @Test
@@ -159,12 +143,12 @@ public class ChapterServiceTest {
         novel.setStatus(1); // ACTIVE
 
         when(novelService.getNovelEntity(novelId)).thenReturn(novel);
-        when(chapterMapper.selectByNovelId(novelId)).thenReturn(chapters);
-        when(chapterMapper.countByNovelId(novelId)).thenReturn(2L);
-        when(chapterMapper.countPublishedByNovelId(novelId)).thenReturn(1L);
-        when(chapterMapper.selectDraftsByNovelId(novelId)).thenReturn(Arrays.asList(chapter1));
-        when(chapterMapper.selectScheduledByNovelId(novelId)).thenReturn(new ArrayList<>());
-        when(chapterMapper.sumWordCountByNovelId(novelId)).thenReturn(25L);
+        when(chapterRepository.findByNovelId(novelId)).thenReturn(chapters);
+        when(chapterRepository.countByNovelId(novelId)).thenReturn(2L);
+        when(chapterRepository.countPublishedByNovelId(novelId)).thenReturn(1L);
+        when(chapterRepository.findDraftsByNovelId(novelId)).thenReturn(Arrays.asList(chapter1));
+        when(chapterRepository.findScheduledByNovelId(novelId)).thenReturn(new ArrayList<>());
+        when(chapterRepository.sumWordCountByNovelId(novelId)).thenReturn(25L);
 
         // When
         ChapterStatisticsResponseDTO result = chapterService.getChapterStatistics(novelId);
@@ -179,7 +163,7 @@ public class ChapterServiceTest {
         assertEquals(1, result.getPremiumChapters());
 
         verify(novelService).getNovelEntity(novelId);
-        verify(chapterMapper).selectByNovelId(novelId);
+        verify(chapterRepository).findByNovelId(novelId);
     }
 
     @Test
@@ -217,9 +201,9 @@ public class ChapterServiceTest {
         createdChapter.setPublishTime(new Date());
 
         when(novelService.getNovelEntity(requestDTO.getNovelId())).thenReturn(novel);
-        when(chapterMapper.existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber())).thenReturn(false);
-        when(chapterMapper.insertSelective(any(Chapter.class))).thenReturn(1);
-        when(chapterMapper.selectByUuid(any(UUID.class))).thenReturn(createdChapter);
+        when(chapterRepository.existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber())).thenReturn(false);
+        when(chapterRepository.save(any(Chapter.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(chapterRepository.findByUuid(any(UUID.class))).thenReturn(createdChapter);
         doNothing().when(redisUtil).invalidateChapterCaches(any(Integer.class));
         doNothing().when(kafkaEventProducerService).publishChapterCreatedEvent(any(Chapter.class), any(Novel.class), any(UUID.class));
 
@@ -235,8 +219,8 @@ public class ChapterServiceTest {
         assertEquals(0.0f, result.getYuanCost());
 
         verify(novelService).getNovelEntity(requestDTO.getNovelId());
-        verify(chapterMapper).existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber());
-        verify(chapterMapper).insertSelective(any(Chapter.class));
+        verify(chapterRepository).existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber());
+        verify(chapterRepository).save(any(Chapter.class));
     }
 
     @Test
@@ -306,7 +290,7 @@ public class ChapterServiceTest {
         novel.setStatus(1); // ACTIVE
 
         when(novelService.getNovelEntity(requestDTO.getNovelId())).thenReturn(novel);
-        when(chapterMapper.existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber())).thenReturn(true);
+        when(chapterRepository.existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber())).thenReturn(true);
 
         // When & Then
         assertThrows(IllegalArgumentException.class, () -> {
@@ -314,7 +298,7 @@ public class ChapterServiceTest {
         });
 
         verify(novelService).getNovelEntity(requestDTO.getNovelId());
-        verify(chapterMapper).existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber());
+        verify(chapterRepository).existsByNovelIdAndChapterNumber(requestDTO.getNovelId(), requestDTO.getChapterNumber());
     }
 
     @Test
@@ -349,9 +333,9 @@ public class ChapterServiceTest {
         novel.setAuthorId(userId);
         novel.setStatus(1); // ACTIVE
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(existingChapter);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(existingChapter);
         when(novelService.getNovelEntity(existingChapter.getNovelId())).thenReturn(novel);
-        when(chapterMapper.updateByPrimaryKeySelective(any(Chapter.class))).thenReturn(1);
+        when(chapterRepository.save(any(Chapter.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).deleteChapterCache(any(UUID.class));
         doNothing().when(redisUtil).deleteChapterCacheByNovelAndNumber(any(Integer.class), any(Integer.class));
         doNothing().when(redisUtil).invalidateChapterCaches(any(Integer.class));
@@ -366,9 +350,9 @@ public class ChapterServiceTest {
         assertEquals("Updated chapter content", result.getContent());
         assertEquals(150, result.getWordCnt());
 
-        verify(chapterMapper, times(2)).selectByUuid(chapterUuid); // Called once in updateChapter and once in getChapterByUuid
+        verify(chapterRepository, times(2)).findByUuid(chapterUuid); // Called once in updateChapter and once in getChapterByUuid
         verify(novelService).getNovelEntity(existingChapter.getNovelId());
-        verify(chapterMapper).updateByPrimaryKeySelective(any(Chapter.class));
+        verify(chapterRepository).save(any(Chapter.class));
     }
 
     @Test
@@ -380,14 +364,14 @@ public class ChapterServiceTest {
         requestDTO.setUuid(chapterUuid);
         requestDTO.setTitle("Updated Chapter");
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(null);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(null);
 
         // When & Then
         assertThrows(ResourceNotFoundException.class, () -> {
             chapterService.updateChapter(userId, requestDTO);
         });
 
-        verify(chapterMapper).selectByUuid(chapterUuid);
+        verify(chapterRepository).findByUuid(chapterUuid);
     }
 
     @Test
@@ -416,7 +400,7 @@ public class ChapterServiceTest {
         novel.setAuthorId(differentUserId); // Different author
         novel.setStatus(1); // ACTIVE
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(existingChapter);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(existingChapter);
         when(novelService.getNovelEntity(existingChapter.getNovelId())).thenReturn(novel);
 
         // When & Then
@@ -424,7 +408,7 @@ public class ChapterServiceTest {
             chapterService.updateChapter(userId, requestDTO);
         });
 
-        verify(chapterMapper).selectByUuid(chapterUuid);
+        verify(chapterRepository).findByUuid(chapterUuid);
         verify(novelService).getNovelEntity(existingChapter.getNovelId());
     }
 
@@ -450,9 +434,9 @@ public class ChapterServiceTest {
         novel.setAuthorId(userId);
         novel.setStatus(1); // ACTIVE
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(existingChapter);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(existingChapter);
         when(novelService.getNovelEntity(existingChapter.getNovelId())).thenReturn(novel);
-        when(chapterMapper.softDeleteByUuid(chapterUuid)).thenReturn(1);
+        doNothing().when(chapterRepository).softDeleteByUuid(chapterUuid);
         doNothing().when(redisUtil).deleteChapterCache(any(UUID.class));
         doNothing().when(redisUtil).deleteChapterCacheByNovelAndNumber(any(Integer.class), any(Integer.class));
         doNothing().when(redisUtil).invalidateChapterCaches(any(Integer.class));
@@ -461,9 +445,9 @@ public class ChapterServiceTest {
         chapterService.deleteChapter(userId, chapterUuid);
 
         // Then
-        verify(chapterMapper).selectByUuid(chapterUuid);
+        verify(chapterRepository).findByUuid(chapterUuid);
         verify(novelService).getNovelEntity(existingChapter.getNovelId());
-        verify(chapterMapper).softDeleteByUuid(chapterUuid);
+        verify(chapterRepository).softDeleteByUuid(chapterUuid);
     }
 
     @Test
@@ -472,14 +456,14 @@ public class ChapterServiceTest {
         UUID userId = UUID.randomUUID();
         UUID chapterUuid = UUID.randomUUID();
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(null);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(null);
 
         // When & Then
         assertThrows(ResourceNotFoundException.class, () -> {
             chapterService.deleteChapter(userId, chapterUuid);
         });
 
-        verify(chapterMapper).selectByUuid(chapterUuid);
+        verify(chapterRepository).findByUuid(chapterUuid);
     }
 
     @Test
@@ -505,7 +489,7 @@ public class ChapterServiceTest {
         novel.setAuthorId(differentUserId); // Different author
         novel.setStatus(1); // ACTIVE
 
-        when(chapterMapper.selectByUuid(chapterUuid)).thenReturn(existingChapter);
+        when(chapterRepository.findByUuid(chapterUuid)).thenReturn(existingChapter);
         when(novelService.getNovelEntity(existingChapter.getNovelId())).thenReturn(novel);
 
         // When & Then
@@ -513,7 +497,7 @@ public class ChapterServiceTest {
             chapterService.deleteChapter(userId, chapterUuid);
         });
 
-        verify(chapterMapper).selectByUuid(chapterUuid);
+        verify(chapterRepository).findByUuid(chapterUuid);
         verify(novelService).getNovelEntity(existingChapter.getNovelId());
     }
 
@@ -566,8 +550,8 @@ public class ChapterServiceTest {
 
         when(novelService.getNovelEntity(novelId)).thenReturn(novel);
         when(redisUtil.getCachedChapterListTyped(eq(novelId), any(String.class))).thenReturn(null);
-        when(chapterMapper.selectPublishedByNovelIdWithPagination(novelId, 0, pageSize)).thenReturn(chapters);
-        when(chapterMapper.countPublishedByNovelId(novelId)).thenReturn(2L);
+        when(chapterRepository.findPublishedByNovelIdWithPagination(novelId, 0, pageSize)).thenReturn(chapters);
+        when(chapterRepository.countPublishedByNovelId(novelId)).thenReturn(2L);
         doNothing().when(redisUtil).cacheChapterList(any(Integer.class), any(String.class), any(PageResponseDTO.class));
 
         // When
@@ -581,8 +565,8 @@ public class ChapterServiceTest {
         assertEquals(pageSize, result.getSize());
 
         verify(novelService).getNovelEntity(novelId);
-        verify(chapterMapper).selectPublishedByNovelIdWithPagination(novelId, 0, pageSize);
-        verify(chapterMapper).countPublishedByNovelId(novelId);
+        verify(chapterRepository).findPublishedByNovelIdWithPagination(novelId, 0, pageSize);
+        verify(chapterRepository).countPublishedByNovelId(novelId);
     }
 
     @Test
@@ -603,8 +587,8 @@ public class ChapterServiceTest {
         nextChapter.setNovelId(1);
         nextChapter.setChapterNumber(2);
 
-        when(chapterMapper.selectByUuid(currentChapterUuid)).thenReturn(currentChapter);
-        when(chapterMapper.selectNextChapter(1, 1)).thenReturn(nextChapter);
+        when(chapterRepository.findByUuid(currentChapterUuid)).thenReturn(currentChapter);
+        when(chapterRepository.findNextChapter(1, 1)).thenReturn(nextChapter);
 
         // When
         UUID result = chapterService.getNextChapterUuid(currentChapterUuid);
@@ -613,8 +597,8 @@ public class ChapterServiceTest {
         assertNotNull(result);
         assertEquals(nextChapterUuid, result);
 
-        verify(chapterMapper).selectByUuid(currentChapterUuid);
-        verify(chapterMapper).selectNextChapter(1, 1);
+        verify(chapterRepository).findByUuid(currentChapterUuid);
+        verify(chapterRepository).findNextChapter(1, 1);
     }
 
     @Test
@@ -622,7 +606,7 @@ public class ChapterServiceTest {
         // Given
         UUID currentChapterUuid = UUID.randomUUID();
 
-        when(chapterMapper.selectByUuid(currentChapterUuid)).thenReturn(null);
+        when(chapterRepository.findByUuid(currentChapterUuid)).thenReturn(null);
 
         // When
         UUID result = chapterService.getNextChapterUuid(currentChapterUuid);
@@ -630,7 +614,7 @@ public class ChapterServiceTest {
         // Then
         assertNull(result);
 
-        verify(chapterMapper).selectByUuid(currentChapterUuid);
+        verify(chapterRepository).findByUuid(currentChapterUuid);
     }
 
     @Test
@@ -651,8 +635,8 @@ public class ChapterServiceTest {
         previousChapter.setNovelId(1);
         previousChapter.setChapterNumber(1);
 
-        when(chapterMapper.selectByUuid(currentChapterUuid)).thenReturn(currentChapter);
-        when(chapterMapper.selectPreviousChapter(1, 2)).thenReturn(previousChapter);
+        when(chapterRepository.findByUuid(currentChapterUuid)).thenReturn(currentChapter);
+        when(chapterRepository.findPreviousChapter(1, 2)).thenReturn(previousChapter);
 
         // When
         UUID result = chapterService.getPreviousChapterUuid(currentChapterUuid);
@@ -661,8 +645,8 @@ public class ChapterServiceTest {
         assertNotNull(result);
         assertEquals(previousChapterUuid, result);
 
-        verify(chapterMapper).selectByUuid(currentChapterUuid);
-        verify(chapterMapper).selectPreviousChapter(1, 2);
+        verify(chapterRepository).findByUuid(currentChapterUuid);
+        verify(chapterRepository).findPreviousChapter(1, 2);
     }
 
     @Test
@@ -670,7 +654,7 @@ public class ChapterServiceTest {
         // Given
         UUID currentChapterUuid = UUID.randomUUID();
 
-        when(chapterMapper.selectByUuid(currentChapterUuid)).thenReturn(null);
+        when(chapterRepository.findByUuid(currentChapterUuid)).thenReturn(null);
 
         // When
         UUID result = chapterService.getPreviousChapterUuid(currentChapterUuid);
@@ -678,7 +662,7 @@ public class ChapterServiceTest {
         // Then
         assertNull(result);
 
-        verify(chapterMapper).selectByUuid(currentChapterUuid);
+        verify(chapterRepository).findByUuid(currentChapterUuid);
     }
 
     @Test

@@ -1,6 +1,6 @@
 package com.yushan.content_service.service;
 
-import com.yushan.content_service.dao.NovelMapper;
+import com.yushan.content_service.repository.NovelRepository;
 import com.yushan.content_service.dto.novel.NovelCreateRequestDTO;
 import com.yushan.content_service.dto.novel.NovelDetailResponseDTO;
 import com.yushan.content_service.dto.novel.NovelSearchRequestDTO;
@@ -27,7 +27,7 @@ import static org.mockito.Mockito.*;
  */
 public class NovelServiceTest {
 
-    private NovelMapper novelMapper;
+    private NovelRepository novelRepository;
     private RedisUtil redisUtil;
     private KafkaEventProducerService kafkaEventProducerService;
     private CategoryService categoryService;
@@ -36,7 +36,7 @@ public class NovelServiceTest {
 
     @BeforeEach
     void setUp() {
-        novelMapper = Mockito.mock(NovelMapper.class);
+        novelRepository = Mockito.mock(NovelRepository.class);
         redisUtil = Mockito.mock(RedisUtil.class);
         kafkaEventProducerService = Mockito.mock(KafkaEventProducerService.class);
         categoryService = Mockito.mock(CategoryService.class);
@@ -44,9 +44,9 @@ public class NovelServiceTest {
 
         novelService = new NovelService();
         try {
-            java.lang.reflect.Field f1 = NovelService.class.getDeclaredField("novelMapper");
+            java.lang.reflect.Field f1 = NovelService.class.getDeclaredField("novelRepository");
             f1.setAccessible(true);
-            f1.set(novelService, novelMapper);
+            f1.set(novelService, novelRepository);
             
             java.lang.reflect.Field f2 = NovelService.class.getDeclaredField("redisUtil");
             f2.setAccessible(true);
@@ -90,12 +90,12 @@ public class NovelServiceTest {
         savedNovel.setCreateTime(new Date());
         savedNovel.setUpdateTime(new Date());
 
-        when(novelMapper.insertSelective(any(Novel.class))).thenAnswer(invocation -> {
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> {
             Novel novel = invocation.getArgument(0);
             novel.setId(1); // Set ID after insert
-            return 1;
+            return novel;
         });
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(savedNovel);
+        when(novelRepository.findById(1)).thenReturn(savedNovel);
         
         // Mock CategoryService
         com.yushan.content_service.entity.Category mockCategory = new com.yushan.content_service.entity.Category();
@@ -115,7 +115,7 @@ public class NovelServiceTest {
         assertEquals(1, result.getCategoryId());
         assertFalse(result.getIsCompleted());
 
-        verify(novelMapper).insertSelective(any(Novel.class));
+        verify(novelRepository).save(any(Novel.class));
         verify(redisUtil).cacheNovel(anyInt(), any(Novel.class));
         verify(kafkaEventProducerService).publishNovelCreatedEvent(any(Novel.class), any(UUID.class));
     }
@@ -129,7 +129,7 @@ public class NovelServiceTest {
         novel.setTitle("Test Novel");
         novel.setStatus(0); // DRAFT
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
 
         // Act
         NovelDetailResponseDTO result = novelService.getNovel(novelId);
@@ -140,18 +140,18 @@ public class NovelServiceTest {
         assertEquals("Test Novel", result.getTitle());
         assertEquals("DRAFT", result.getStatus());
 
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
     }
 
     @Test
     void getNovel_WithInvalidId_ShouldThrowException() {
         // Arrange
         Integer novelId = 999;
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(null);
+        when(novelRepository.findById(novelId)).thenReturn(null);
 
         // Act & Assert
         assertThrows(ResourceNotFoundException.class, () -> novelService.getNovel(novelId));
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
     }
 
     @Test
@@ -171,8 +171,8 @@ public class NovelServiceTest {
         existingNovel.setStatus(NovelStatus.DRAFT.getValue()); // Set status to avoid NPE
         existingNovel.setAuthorId(UUID.randomUUID()); // Set authorId for Kafka event
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(existingNovel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(existingNovel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         
         // Mock CategoryService
         com.yushan.content_service.entity.Category mockCategory = new com.yushan.content_service.entity.Category();
@@ -191,8 +191,8 @@ public class NovelServiceTest {
         assertEquals(2, result.getCategoryId());
         assertTrue(result.getIsCompleted());
 
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
         verify(kafkaEventProducerService).publishNovelUpdatedEvent(any(Novel.class), any(UUID.class), any(String[].class));
     }
 
@@ -203,11 +203,11 @@ public class NovelServiceTest {
         NovelUpdateRequestDTO request = new NovelUpdateRequestDTO();
         request.setTitle("Updated Novel");
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(null);
+        when(novelRepository.findById(novelId)).thenReturn(null);
 
         // Act & Assert
         assertThrows(ResourceNotFoundException.class, () -> novelService.updateNovel(novelId, request));
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
     }
 
     @Test
@@ -220,8 +220,8 @@ public class NovelServiceTest {
         novel.setAuthorId(authorId);
         novel.setStatus(0); // DRAFT
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).invalidateNovelCaches(novelId);
         doNothing().when(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
 
@@ -231,8 +231,8 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("UNDER_REVIEW", result.getStatus());
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
     }
 
     @Test
@@ -245,11 +245,11 @@ public class NovelServiceTest {
         novel.setAuthorId(authorId);
         novel.setStatus(2); // PUBLISHED
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
 
         // Act & Assert
         assertThrows(IllegalArgumentException.class, () -> novelService.submitForReview(novelId, authorId));
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
     }
 
     @Test
@@ -260,8 +260,8 @@ public class NovelServiceTest {
         novel.setId(novelId);
         novel.setStatus(1); // UNDER_REVIEW
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).invalidateNovelCaches(novelId);
         doNothing().when(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
 
@@ -271,8 +271,8 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("PUBLISHED", result.getStatus());
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
     }
 
     @Test
@@ -283,8 +283,8 @@ public class NovelServiceTest {
         novel.setId(novelId);
         novel.setStatus(2); // PUBLISHED
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).invalidateNovelCaches(novelId);
         doNothing().when(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
 
@@ -294,8 +294,8 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("HIDDEN", result.getStatus());
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
     }
 
     @Test
@@ -310,8 +310,8 @@ public class NovelServiceTest {
             createTestNovel(2, "Novel 2")
         );
 
-        when(novelMapper.selectNovelsWithPagination(any())).thenReturn(novels);
-        when(novelMapper.countNovels(any())).thenReturn(2L);
+        when(novelRepository.findNovelsWithPagination(any())).thenReturn(novels);
+        when(novelRepository.countNovels(any())).thenReturn(2L);
         
         // Mock CategoryService for batch loading
         when(categoryService.getCategoryMapByIds(any())).thenReturn(java.util.Map.of(1, "Test Category"));
@@ -325,8 +325,8 @@ public class NovelServiceTest {
         assertEquals(1, result.getTotalPages());
         assertEquals(2, result.getContent().size());
 
-        verify(novelMapper).selectNovelsWithPagination(any());
-        verify(novelMapper).countNovels(any());
+        verify(novelRepository).findNovelsWithPagination(any());
+        verify(novelRepository).countNovels(any());
     }
 
     @Test
@@ -338,15 +338,15 @@ public class NovelServiceTest {
         String ipAddress = "192.168.1.1";
         Novel novel = createTestNovel(novelId, "Test Novel");
         
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.incrementViewCount(novelId)).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        doNothing().when(novelRepository).incrementViewCount(novelId);
 
         // Act
         novelService.incrementViewCount(novelId, userId, userAgent, ipAddress);
 
         // Assert
-        verify(novelMapper, times(2)).selectByPrimaryKey(novelId); // Called twice: once to check existence, once to get updated data
-        verify(novelMapper).incrementViewCount(novelId);
+        verify(novelRepository, times(2)).findById(novelId); // Called twice: once to check existence, once to get updated data
+        verify(novelRepository).incrementViewCount(novelId);
         verify(redisUtil).incrementCachedViewCount(novelId);
         verify(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
         verify(kafkaEventProducerService).publishNovelViewEvent(any(Novel.class), eq(userId), eq(userAgent), eq(ipAddress), isNull());
@@ -362,7 +362,7 @@ public class NovelServiceTest {
         novel.setTitle("Test Novel");
         novel.setStatus(0); // DRAFT
 
-        when(novelMapper.selectByUuid(novelUuid)).thenReturn(novel);
+        when(novelRepository.findByUuid(novelUuid)).thenReturn(novel);
 
         // Act
         NovelDetailResponseDTO result = novelService.getNovelByUuid(novelUuid);
@@ -373,18 +373,18 @@ public class NovelServiceTest {
         assertEquals("Test Novel", result.getTitle());
         assertEquals("DRAFT", result.getStatus());
 
-        verify(novelMapper).selectByUuid(novelUuid);
+        verify(novelRepository).findByUuid(novelUuid);
     }
 
     @Test
     void getNovelByUuid_WithInvalidUuid_ShouldThrowException() {
         // Arrange
         UUID novelUuid = UUID.randomUUID();
-        when(novelMapper.selectByUuid(novelUuid)).thenReturn(null);
+        when(novelRepository.findByUuid(novelUuid)).thenReturn(null);
 
         // Act & Assert
         assertThrows(ResourceNotFoundException.class, () -> novelService.getNovelByUuid(novelUuid));
-        verify(novelMapper).selectByUuid(novelUuid);
+        verify(novelRepository).findByUuid(novelUuid);
     }
 
     @Test
@@ -396,8 +396,8 @@ public class NovelServiceTest {
         novel.setTitle("Test Novel");
         novel.setStatus(0); // DRAFT
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).invalidateNovelCaches(novelId);
 
         // Act
@@ -406,8 +406,8 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("ARCHIVED", result.getStatus());
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
         verify(redisUtil).invalidateNovelCaches(novelId);
     }
 
@@ -419,8 +419,8 @@ public class NovelServiceTest {
         novel.setId(novelId);
         novel.setStatus(1); // UNDER_REVIEW
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).invalidateNovelCaches(novelId);
         doNothing().when(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
 
@@ -430,8 +430,8 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("DRAFT", result.getStatus());
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
     }
 
     @Test
@@ -442,8 +442,8 @@ public class NovelServiceTest {
         novel.setId(novelId);
         novel.setStatus(3); // HIDDEN
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).invalidateNovelCaches(novelId);
         doNothing().when(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
 
@@ -453,8 +453,8 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("PUBLISHED", result.getStatus());
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
     }
 
     @Test
@@ -466,7 +466,7 @@ public class NovelServiceTest {
             createTestNovel(2, "Novel 2")
         );
 
-        when(novelMapper.selectNovelsWithPagination(any())).thenReturn(novels);
+        when(novelRepository.findNovelsWithPagination(any())).thenReturn(novels);
         when(categoryService.getCategoryMapByIds(any())).thenReturn(java.util.Map.of(1, "Test Category"));
 
         // Act
@@ -475,7 +475,7 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals(2, result.size());
-        verify(novelMapper).selectNovelsWithPagination(any());
+        verify(novelRepository).findNovelsWithPagination(any());
     }
 
     @Test
@@ -487,7 +487,7 @@ public class NovelServiceTest {
             createTestNovel(2, "Novel 2")
         );
 
-        when(novelMapper.selectNovelsWithPagination(any())).thenReturn(novels);
+        when(novelRepository.findNovelsWithPagination(any())).thenReturn(novels);
         when(categoryService.getCategoryMapByIds(any())).thenReturn(java.util.Map.of(1, "Test Category"));
 
         // Act
@@ -496,7 +496,7 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals(2, result.size());
-        verify(novelMapper).selectNovelsWithPagination(any());
+        verify(novelRepository).findNovelsWithPagination(any());
     }
 
     @Test
@@ -504,14 +504,14 @@ public class NovelServiceTest {
         // Arrange
         NovelSearchRequestDTO request = new NovelSearchRequestDTO();
         request.setCategoryId(1);
-        when(novelMapper.countNovels(request)).thenReturn(5L);
+        when(novelRepository.countNovels(request)).thenReturn(5L);
 
         // Act
         long result = novelService.getNovelCount(request);
 
         // Assert
         assertEquals(5L, result);
-        verify(novelMapper).countNovels(request);
+        verify(novelRepository).countNovels(request);
     }
 
     @Test
@@ -521,14 +521,14 @@ public class NovelServiceTest {
         Novel novel = createTestNovel(novelId, "Test Novel");
         novel.setVoteCnt(10);
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
 
         // Act
         Integer result = novelService.getNovelVoteCount(novelId);
 
         // Assert
         assertEquals(10, result);
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
     }
 
     @Test
@@ -538,14 +538,14 @@ public class NovelServiceTest {
         Novel novel = createTestNovel(novelId, "Test Novel");
         novel.setVoteCnt(5);
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.incrementVoteCount(novelId)).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        doNothing().when(novelRepository).incrementVoteCount(novelId);
 
         // Act
         novelService.incrementVoteCount(novelId);
 
         // Assert
-        verify(novelMapper).incrementVoteCount(novelId);
+        verify(novelRepository).incrementVoteCount(novelId);
         verify(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
     }
 
@@ -557,15 +557,15 @@ public class NovelServiceTest {
         Integer reviewCount = 10;
         Novel novel = createTestNovel(novelId, "Test Novel");
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
         novelService.updateNovelRatingAndCount(novelId, avgRating, reviewCount);
 
         // Assert
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
         verify(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
     }
 
@@ -578,7 +578,7 @@ public class NovelServiceTest {
             createTestNovel(2, "Novel 2")
         );
 
-        when(novelMapper.selectByIds(novelIds)).thenReturn(novels);
+        when(novelRepository.findByIds(novelIds)).thenReturn(novels);
 
         // Act
         List<NovelDetailResponseDTO> result = novelService.getNovelsByIds(novelIds);
@@ -586,7 +586,7 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals(2, result.size());
-        verify(novelMapper).selectByIds(novelIds);
+        verify(novelRepository).findByIds(novelIds);
     }
 
     @Test
@@ -600,7 +600,7 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertTrue(result.isEmpty());
-        verify(novelMapper, never()).selectByIds(any());
+        verify(novelRepository, never()).findByIds(any());
     }
 
     @Test
@@ -611,8 +611,8 @@ public class NovelServiceTest {
         novel.setId(novelId);
         novel.setStatus(4); // ARCHIVED
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
-        when(novelMapper.updateByPrimaryKeySelective(any(Novel.class))).thenReturn(1);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
+        when(novelRepository.save(any(Novel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         doNothing().when(redisUtil).invalidateNovelCaches(novelId);
 
         // Act
@@ -621,8 +621,8 @@ public class NovelServiceTest {
         // Assert
         assertNotNull(result);
         assertEquals("DRAFT", result.getStatus());
-        verify(novelMapper).selectByPrimaryKey(novelId);
-        verify(novelMapper).updateByPrimaryKeySelective(any(Novel.class));
+        verify(novelRepository).findById(novelId);
+        verify(novelRepository).save(any(Novel.class));
         verify(redisUtil).invalidateNovelCaches(novelId);
     }
 
@@ -634,11 +634,11 @@ public class NovelServiceTest {
         novel.setId(novelId);
         novel.setStatus(0); // DRAFT
 
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(novel);
+        when(novelRepository.findById(novelId)).thenReturn(novel);
 
         // Act & Assert
         assertThrows(IllegalArgumentException.class, () -> novelService.unarchiveNovel(novelId));
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
     }
 
     @Test

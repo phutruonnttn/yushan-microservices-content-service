@@ -1,8 +1,8 @@
 package com.yushan.content_service.security;
 
-import com.yushan.content_service.dao.NovelMapper;
 import com.yushan.content_service.entity.Novel;
 import com.yushan.content_service.enums.NovelStatus;
+import com.yushan.content_service.repository.NovelRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.*;
 class NovelGuardTest {
 
     @Mock
-    private NovelMapper novelMapper;
+    private NovelRepository novelRepository;
 
     @Mock
     private Authentication authentication;
@@ -117,7 +117,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(null);
+        when(novelRepository.findById(1)).thenReturn(null);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -134,7 +134,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -151,7 +151,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(differentUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -168,7 +168,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -185,7 +185,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -202,7 +202,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -219,7 +219,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -236,7 +236,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canEdit(1, authentication);
@@ -287,7 +287,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canHideOrUnhide(1, authentication);
@@ -304,7 +304,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canHideOrUnhide(1, authentication);
@@ -321,7 +321,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(testUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canHideOrUnhide(1, authentication);
@@ -339,7 +339,7 @@ class NovelGuardTest {
         when(authentication.getAuthorities()).thenReturn(Arrays.asList());
         when(authentication.getPrincipal()).thenReturn(customUserDetails);
         when(customUserDetails.getUserId()).thenReturn(differentUserId.toString());
-        when(novelMapper.selectByPrimaryKey(1)).thenReturn(testNovel);
+        when(novelRepository.findById(1)).thenReturn(testNovel);
 
         // When
         boolean result = novelGuard.canHideOrUnhide(1, authentication);

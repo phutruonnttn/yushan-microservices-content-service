@@ -1,6 +1,5 @@
 package com.yushan.content_service.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.yushan.content_service.dto.chapter.ChapterSearchRequestDTO;
 import com.yushan.content_service.dto.chapter.ChapterSummaryDTO;
 import com.yushan.content_service.dto.common.PageResponseDTO;
@@ -14,7 +13,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -37,12 +35,10 @@ class SearchControllerTest {
     private SearchController searchController;
 
     private MockMvc mockMvc;
-    private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(searchController).build();
-        objectMapper = new ObjectMapper();
     }
 
     @Test
