@@ -1,6 +1,6 @@
 package com.yushan.content_service.security;
 
-import com.yushan.content_service.dao.NovelMapper;
+import com.yushan.content_service.repository.NovelRepository;
 import com.yushan.content_service.entity.Novel;
 import com.yushan.content_service.enums.NovelStatus;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +18,7 @@ import java.util.UUID;
 public class NovelGuard {
 
     @Autowired
-    private NovelMapper novelMapper;
+    private NovelRepository novelRepository;
 
     /**
      * Check if user can edit a novel
@@ -45,7 +45,7 @@ public class NovelGuard {
         if (userIdStr == null) return false;
         UUID userId = UUID.fromString(userIdStr);
 
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null || novel.getAuthorId() == null) {
             return false;
         }
@@ -87,7 +87,7 @@ public class NovelGuard {
         if (userIdStr == null) return false;
         UUID userId = UUID.fromString(userIdStr);
 
-        Novel novel = novelMapper.selectByPrimaryKey(novelId);
+        Novel novel = novelRepository.findById(novelId);
         if (novel == null || novel.getAuthorId() == null) {
             return false;
         }
