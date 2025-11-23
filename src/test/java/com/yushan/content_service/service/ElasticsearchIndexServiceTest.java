@@ -1,7 +1,7 @@
 package com.yushan.content_service.service;
 
-import com.yushan.content_service.dao.ChapterMapper;
-import com.yushan.content_service.dao.NovelMapper;
+import com.yushan.content_service.repository.ChapterRepository;
+import com.yushan.content_service.repository.NovelRepository;
 import com.yushan.content_service.dto.novel.NovelSearchRequestDTO;
 import com.yushan.content_service.entity.Chapter;
 import com.yushan.content_service.entity.Novel;
@@ -41,10 +41,10 @@ class ElasticsearchIndexServiceTest {
     private ChapterElasticsearchRepository chapterElasticsearchRepository;
 
     @Mock
-    private NovelMapper novelMapper;
+    private NovelRepository novelRepository;
 
     @Mock
-    private ChapterMapper chapterMapper;
+    private ChapterRepository chapterRepository;
 
     private Novel testNovel;
     private Chapter testChapter;
@@ -95,13 +95,13 @@ class ElasticsearchIndexServiceTest {
     void indexAllNovels_ShouldIndexAllPublishedNovels() {
         // Arrange
         List<Novel> novels = Arrays.asList(testNovel);
-        when(novelMapper.selectNovelsWithPagination(any(NovelSearchRequestDTO.class))).thenReturn(novels);
+        when(novelRepository.findNovelsWithPagination(any(NovelSearchRequestDTO.class))).thenReturn(novels);
 
         // Act
         elasticsearchIndexService.indexAllNovels();
 
         // Assert
-        verify(novelMapper).selectNovelsWithPagination(any(NovelSearchRequestDTO.class));
+        verify(novelRepository).findNovelsWithPagination(any(NovelSearchRequestDTO.class));
         verify(novelElasticsearchRepository).saveAll(anyList());
     }
 
@@ -109,13 +109,13 @@ class ElasticsearchIndexServiceTest {
     void indexAllChapters_ShouldIndexAllPublishedChapters() {
         // Arrange
         List<Chapter> chapters = Arrays.asList(testChapter);
-        when(chapterMapper.selectPublishedChapters()).thenReturn(chapters);
+        when(chapterRepository.findPublishedChapters()).thenReturn(chapters);
 
         // Act
         elasticsearchIndexService.indexAllChapters();
 
         // Assert
-        verify(chapterMapper).selectPublishedChapters();
+        verify(chapterRepository).findPublishedChapters();
         verify(chapterElasticsearchRepository).saveAll(anyList());
     }
 
@@ -123,13 +123,13 @@ class ElasticsearchIndexServiceTest {
     void indexNovel_WithValidNovelId_ShouldIndexNovel() {
         // Arrange
         Integer novelId = 1;
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(testNovel);
+        when(novelRepository.findById(novelId)).thenReturn(testNovel);
 
         // Act
         elasticsearchIndexService.indexNovel(novelId);
 
         // Assert
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
         verify(novelElasticsearchRepository).save(any(NovelDocument.class));
     }
 
@@ -137,13 +137,13 @@ class ElasticsearchIndexServiceTest {
     void indexNovel_WithInvalidNovelId_ShouldNotIndex() {
         // Arrange
         Integer novelId = 999;
-        when(novelMapper.selectByPrimaryKey(novelId)).thenReturn(null);
+        when(novelRepository.findById(novelId)).thenReturn(null);
 
         // Act
         elasticsearchIndexService.indexNovel(novelId);
 
         // Assert
-        verify(novelMapper).selectByPrimaryKey(novelId);
+        verify(novelRepository).findById(novelId);
         verify(novelElasticsearchRepository, never()).save(any(NovelDocument.class));
     }
 
@@ -151,13 +151,13 @@ class ElasticsearchIndexServiceTest {
     void indexChapter_WithValidChapterId_ShouldIndexChapter() {
         // Arrange
         Integer chapterId = 1;
-        when(chapterMapper.selectByPrimaryKey(chapterId)).thenReturn(testChapter);
+        when(chapterRepository.findById(chapterId)).thenReturn(testChapter);
 
         // Act
         elasticsearchIndexService.indexChapter(chapterId);
 
         // Assert
-        verify(chapterMapper).selectByPrimaryKey(chapterId);
+        verify(chapterRepository).findById(chapterId);
         verify(chapterElasticsearchRepository).save(any(ChapterDocument.class));
     }
 
@@ -165,13 +165,13 @@ class ElasticsearchIndexServiceTest {
     void indexChapter_WithInvalidChapterId_ShouldNotIndex() {
         // Arrange
         Integer chapterId = 999;
-        when(chapterMapper.selectByPrimaryKey(chapterId)).thenReturn(null);
+        when(chapterRepository.findById(chapterId)).thenReturn(null);
 
         // Act
         elasticsearchIndexService.indexChapter(chapterId);
 
         // Assert
-        verify(chapterMapper).selectByPrimaryKey(chapterId);
+        verify(chapterRepository).findById(chapterId);
         verify(chapterElasticsearchRepository, never()).save(any(ChapterDocument.class));
     }
 
@@ -214,8 +214,8 @@ class ElasticsearchIndexServiceTest {
         // Arrange
         List<Novel> novels = Arrays.asList(testNovel);
         List<Chapter> chapters = Arrays.asList(testChapter);
-        when(novelMapper.selectNovelsWithPagination(any(NovelSearchRequestDTO.class))).thenReturn(novels);
-        when(chapterMapper.selectPublishedChapters()).thenReturn(chapters);
+        when(novelRepository.findNovelsWithPagination(any(NovelSearchRequestDTO.class))).thenReturn(novels);
+        when(chapterRepository.findPublishedChapters()).thenReturn(chapters);
 
         // Act
         elasticsearchIndexService.reindexAllData();
@@ -223,8 +223,8 @@ class ElasticsearchIndexServiceTest {
         // Assert
         verify(novelElasticsearchRepository).deleteAll();
         verify(chapterElasticsearchRepository).deleteAll();
-        verify(novelMapper).selectNovelsWithPagination(any(NovelSearchRequestDTO.class));
-        verify(chapterMapper).selectPublishedChapters();
+        verify(novelRepository).findNovelsWithPagination(any(NovelSearchRequestDTO.class));
+        verify(chapterRepository).findPublishedChapters();
         verify(novelElasticsearchRepository).saveAll(anyList());
         verify(chapterElasticsearchRepository).saveAll(anyList());
     }

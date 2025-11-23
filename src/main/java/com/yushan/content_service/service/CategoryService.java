@@ -1,6 +1,6 @@
 package com.yushan.content_service.service;
 
-import com.yushan.content_service.dao.CategoryMapper;
+import com.yushan.content_service.repository.CategoryRepository;
 import com.yushan.content_service.entity.Category;
 import com.yushan.content_service.exception.ResourceNotFoundException;
 import com.yushan.content_service.util.RedisUtil;
@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class CategoryService {
 
     @Autowired
-    private CategoryMapper categoryMapper;
+    private CategoryRepository categoryRepository;
 
     @Autowired
     private RedisUtil redisUtil;
@@ -33,7 +33,7 @@ public class CategoryService {
             return cached;
         }
 
-        List<Category> categories = categoryMapper.selectAll();
+        List<Category> categories = categoryRepository.findAll();
         
         // Cache the result
         redisUtil.cacheCategories("all", categories);
@@ -52,7 +52,7 @@ public class CategoryService {
             return cached;
         }
 
-        List<Category> categories = categoryMapper.selectActiveCategories();
+        List<Category> categories = categoryRepository.findActiveCategories();
         
         // Cache the result
         redisUtil.cacheCategories("active", categories);
@@ -75,7 +75,7 @@ public class CategoryService {
             return cached;
         }
 
-        Category category = categoryMapper.selectByPrimaryKey(id);
+        Category category = categoryRepository.findById(id);
         if (category == null) {
             throw new ResourceNotFoundException("Category not found with id: " + id);
         }
@@ -101,7 +101,7 @@ public class CategoryService {
             return cached;
         }
 
-        Category category = categoryMapper.selectBySlug(slug);
+        Category category = categoryRepository.findBySlug(slug);
         if (category == null) {
             throw new ResourceNotFoundException("Category not found with slug: " + slug);
         }
@@ -146,7 +146,7 @@ public class CategoryService {
         
         category.initializeAsNew();
 
-        categoryMapper.insertSelective(category);
+        categoryRepository.save(category);
 
         // Clear cache after creation
         redisUtil.invalidateCategoryCaches();
@@ -160,7 +160,7 @@ public class CategoryService {
      */
     @Transactional
     public Category updateCategory(Integer id, String name, String description, Boolean isActive) {
-        Category existing = categoryMapper.selectByPrimaryKey(id);
+        Category existing = categoryRepository.findById(id);
         if (existing == null) {
             throw new ResourceNotFoundException("Category not found with id: " + id);
         }
@@ -205,7 +205,7 @@ public class CategoryService {
         // Only update if there are changes
         if (hasChanges) {
             existing.setUpdateTime(new Date());
-            categoryMapper.updateByPrimaryKeySelective(existing);
+            categoryRepository.save(existing);
             
             // Clear cache after update
             redisUtil.invalidateCategoryCaches();
@@ -219,24 +219,24 @@ public class CategoryService {
      */
     @Transactional
     public boolean deleteCategory(Integer id) {
-        Category existing = categoryMapper.selectByPrimaryKey(id);
+        Category existing = categoryRepository.findById(id);
         if (existing == null) {
             throw new ResourceNotFoundException("Category not found with id: " + id);
         }
 
         // Check if category has novels
-        int novelCount = categoryMapper.countActiveNovelsByCategory(id);
+        long novelCount = categoryRepository.countActiveNovelsByCategory(id);
         if (novelCount > 0) {
             throw new IllegalArgumentException("Cannot delete category with active novels. Please reassign novels first.");
         }
 
         existing.deactivate();
-        int result = categoryMapper.updateByPrimaryKeySelective(existing);
+        categoryRepository.save(existing);
         
         // Clear cache after deletion
         redisUtil.invalidateCategoryCaches();
         
-        return result > 0;
+        return true;
     }
 
     /**
@@ -245,23 +245,23 @@ public class CategoryService {
      */
     @Transactional
     public boolean hardDeleteCategory(Integer id) {
-        Category existing = categoryMapper.selectByPrimaryKey(id);
+        Category existing = categoryRepository.findById(id);
         if (existing == null) {
             throw new ResourceNotFoundException("Category not found with id: " + id);
         }
 
         // Check if category has novels
-        int novelCount = categoryMapper.countNovelsByCategory(id);
+        long novelCount = categoryRepository.countNovelsByCategory(id);
         if (novelCount > 0) {
             throw new IllegalArgumentException("Cannot delete category with novels. Please reassign novels first.");
         }
 
-        int result = categoryMapper.deleteByPrimaryKey(id);
+        categoryRepository.delete(id);
         
         // Clear cache after deletion
         redisUtil.invalidateCategoryCaches();
         
-        return result > 0;
+        return true;
     }
 
     /**
@@ -273,7 +273,7 @@ public class CategoryService {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyMap();
         }
-        List<Category> categories = categoryMapper.selectByIds(ids);
+        List<Category> categories = categoryRepository.findByIds(ids);
         return categories.stream()
                 .collect(Collectors.toMap(Category::getId, Category::getName));
     }
@@ -286,8 +286,8 @@ public class CategoryService {
         
         Map<String, Object> stats = new HashMap<>();
         stats.put("category", category);
-        stats.put("totalNovels", categoryMapper.countNovelsByCategory(categoryId));
-        stats.put("activeNovels", categoryMapper.countActiveNovelsByCategory(categoryId));
+        stats.put("totalNovels", categoryRepository.countNovelsByCategory(categoryId));
+        stats.put("activeNovels", categoryRepository.countActiveNovelsByCategory(categoryId));
         
         return stats;
     }
@@ -306,9 +306,9 @@ public class CategoryService {
         
         Category existing;
         if (excludeId != null) {
-            existing = categoryMapper.selectByNameExcludingId(name.trim(), excludeId);
+            existing = categoryRepository.findByNameExcludingId(name.trim(), excludeId);
         } else {
-            existing = categoryMapper.selectByName(name.trim());
+            existing = categoryRepository.findByName(name.trim());
         }
         
         return existing != null;
@@ -328,9 +328,9 @@ public class CategoryService {
         
         Category existing;
         if (excludeId != null) {
-            existing = categoryMapper.selectBySlugExcludingId(slug.trim(), excludeId);
+            existing = categoryRepository.findBySlugExcludingId(slug.trim(), excludeId);
         } else {
-            existing = categoryMapper.selectBySlug(slug.trim());
+            existing = categoryRepository.findBySlug(slug.trim());
         }
         
         return existing != null;
