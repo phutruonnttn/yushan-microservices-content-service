@@ -1,5 +1,6 @@
 package com.yushan.content_service.service;
 
+import com.yushan.content_service.domain.event.ChapterDomainEventPublisher;
 import com.yushan.content_service.repository.ChapterRepository;
 import com.yushan.content_service.dto.chapter.*;
 import com.yushan.content_service.dto.common.PageResponseDTO;
@@ -32,6 +33,9 @@ public class ChapterService {
 
     @Autowired(required = false)
     private ElasticsearchAutoIndexService elasticsearchAutoIndexService;
+
+    @Autowired
+    private ChapterDomainEventPublisher chapterDomainEventPublisher;
 
 
     @Transactional
@@ -97,11 +101,9 @@ public class ChapterService {
 
         chapterRepository.save(chapter);
 
-        // Update novel's chapter count and word count
-        updateNovelStatistics(req.getNovelId());
-
         // Invalidate chapter caches for this novel
         redisUtil.invalidateChapterCaches(req.getNovelId());
+        chapterDomainEventPublisher.publishChapterStatisticsChanged(req.getNovelId());
 
         // Publish chapter created event
         try {
@@ -187,11 +189,9 @@ public class ChapterService {
 
         chapterRepository.batchInsert(chapters);
 
-        // Update novel's chapter count and word count
-        updateNovelStatistics(req.getNovelId());
-
         // Invalidate chapter caches for this novel
         redisUtil.invalidateChapterCaches(req.getNovelId());
+        chapterDomainEventPublisher.publishChapterStatisticsChanged(req.getNovelId());
     }
 
     public ChapterDetailResponseDTO getChapterByUuid(UUID uuid) {
@@ -473,7 +473,7 @@ public class ChapterService {
 
             // Update novel statistics if word count changed
             if (req.getWordCnt() != null || req.getContent() != null) {
-                updateNovelStatistics(existing.getNovelId());
+                chapterDomainEventPublisher.publishChapterStatisticsChanged(existing.getNovelId());
             }
 
             // Invalidate chapter caches
@@ -525,7 +525,7 @@ public class ChapterService {
         chapterRepository.save(chapter);
 
         // Update novel statistics
-        updateNovelStatistics(chapter.getNovelId());
+        chapterDomainEventPublisher.publishChapterStatisticsChanged(chapter.getNovelId());
 
         // Invalidate chapter caches
         redisUtil.deleteChapterCache(req.getUuid());
@@ -561,11 +561,9 @@ public class ChapterService {
         if (!ids.isEmpty()) {
             chapterRepository.updatePublishStatusByIds(ids, isValid);
             
-            // Update novel statistics
-            updateNovelStatistics(novelId);
-            
             // Invalidate chapter caches for this novel
             redisUtil.invalidateChapterCaches(novelId);
+            chapterDomainEventPublisher.publishChapterStatisticsChanged(novelId);
         }
     }
 
@@ -606,13 +604,11 @@ public class ChapterService {
 
         chapterRepository.softDeleteByUuid(uuid);
 
-        // Update novel statistics
-        updateNovelStatistics(chapter.getNovelId());
-
         // Invalidate chapter caches
         redisUtil.deleteChapterCache(uuid);
         redisUtil.deleteChapterCacheByNovelAndNumber(chapter.getNovelId(), chapter.getChapterNumber());
         redisUtil.invalidateChapterCaches(chapter.getNovelId());
+        chapterDomainEventPublisher.publishChapterStatisticsChanged(chapter.getNovelId());
 
         // Auto-remove from Elasticsearch
         if (elasticsearchAutoIndexService != null) {
@@ -641,11 +637,9 @@ public class ChapterService {
             }
         }
 
-        // Update novel statistics
-        updateNovelStatistics(novelId);
-
         // Invalidate all chapter caches for this novel
         redisUtil.invalidateChapterCaches(novelId);
+        chapterDomainEventPublisher.publishChapterStatisticsChanged(novelId);
     }
 
     public UUID getNextChapterUuid(UUID currentChapterUuid) {
@@ -678,21 +672,6 @@ public class ChapterService {
     }
 
     /**
-     * Update novel's chapter count and word count statistics
-     * Called after chapter creation, update, or deletion
-     * Only counts published chapters (is_valid = true and publish_time <= NOW())
-     */
-    @Transactional
-    public void updateNovelStatistics(Integer novelId) {
-        // Count only published chapters (is_valid = true and publish_time <= NOW())
-        long chapterCount = chapterRepository.countPublishedByNovelId(novelId);
-        long wordCount = chapterRepository.sumPublishedWordCountByNovelId(novelId);
-
-        // Use NovelService to update statistics
-        novelService.updateNovelStatistics(novelId, (int) chapterCount, wordCount);
-    }
-
-    /**
      * Admin-only: Delete a chapter without author validation
      */
     @Transactional
@@ -704,13 +683,11 @@ public class ChapterService {
 
         chapterRepository.softDeleteByUuid(uuid);
 
-        // Update novel statistics
-        updateNovelStatistics(chapter.getNovelId());
-
         // Invalidate chapter caches
         redisUtil.deleteChapterCache(uuid);
         redisUtil.deleteChapterCacheByNovelAndNumber(chapter.getNovelId(), chapter.getChapterNumber());
         redisUtil.invalidateChapterCaches(chapter.getNovelId());
+        chapterDomainEventPublisher.publishChapterStatisticsChanged(chapter.getNovelId());
 
         // Auto-remove from Elasticsearch
         if (elasticsearchAutoIndexService != null) {
@@ -734,11 +711,9 @@ public class ChapterService {
             chapterRepository.softDelete(chapter.getId());
         }
 
-        // Update novel statistics
-        updateNovelStatistics(novelId);
-
         // Invalidate all chapter caches for this novel
         redisUtil.invalidateChapterCaches(novelId);
+        chapterDomainEventPublisher.publishChapterStatisticsChanged(novelId);
     }
 
     // Helper methods
