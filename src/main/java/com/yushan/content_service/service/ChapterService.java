@@ -37,6 +37,9 @@ public class ChapterService {
     @Autowired
     private ChapterDomainEventPublisher chapterDomainEventPublisher;
 
+    @Autowired
+    private TransactionAwareKafkaPublisher transactionAwareKafkaPublisher;
+
 
     @Transactional
     public ChapterDetailResponseDTO createChapter(UUID userId, ChapterCreateRequestDTO req) {
@@ -105,13 +108,13 @@ public class ChapterService {
         redisUtil.invalidateChapterCaches(req.getNovelId());
         chapterDomainEventPublisher.publishChapterStatisticsChanged(req.getNovelId());
 
-        // Publish chapter created event
-        try {
-            kafkaEventProducerService.publishChapterCreatedEvent(chapter, novel, userId);
-        } catch (Exception e) {
-            // Log error but don't fail the transaction
-            System.err.println("Failed to publish chapter created event: " + e.getMessage());
-        }
+        // Publish chapter created event AFTER transaction commit
+        final Chapter finalChapter = chapter;
+        final Novel finalNovel = novel;
+        final UUID finalUserId = userId;
+        transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+            kafkaEventProducerService.publishChapterCreatedEvent(finalChapter, finalNovel, finalUserId);
+        });
 
         // Auto-index to Elasticsearch
         if (elasticsearchAutoIndexService != null) {
@@ -481,13 +484,13 @@ public class ChapterService {
             redisUtil.deleteChapterCacheByNovelAndNumber(existing.getNovelId(), existing.getChapterNumber());
             redisUtil.invalidateChapterCaches(existing.getNovelId());
 
-            // Publish chapter updated event
-            try {
-                kafkaEventProducerService.publishChapterUpdatedEvent(existing, novel, userId);
-            } catch (Exception e) {
-                // Log error but don't fail the transaction
-                System.err.println("Failed to publish chapter updated event: " + e.getMessage());
-            }
+            // Publish chapter updated event AFTER transaction commit
+            final Chapter finalExisting = existing;
+            final Novel finalNovel = novel;
+            final UUID finalUserId = userId;
+            transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+                kafkaEventProducerService.publishChapterUpdatedEvent(finalExisting, finalNovel, finalUserId);
+            });
 
             // Auto-index to Elasticsearch
             if (elasticsearchAutoIndexService != null) {
@@ -532,13 +535,13 @@ public class ChapterService {
         redisUtil.deleteChapterCacheByNovelAndNumber(chapter.getNovelId(), chapter.getChapterNumber());
         redisUtil.invalidateChapterCaches(chapter.getNovelId());
 
-        // Publish chapter published event
-        try {
-            kafkaEventProducerService.publishChapterPublishedEvent(chapter, novel, userId);
-        } catch (Exception e) {
-            // Log error but don't fail the transaction
-            System.err.println("Failed to publish chapter published event: " + e.getMessage());
-        }
+        // Publish chapter published event AFTER transaction commit
+        final Chapter finalChapter = chapter;
+        final Novel finalNovel = novel;
+        final UUID finalUserId = userId;
+        transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+            kafkaEventProducerService.publishChapterPublishedEvent(finalChapter, finalNovel, finalUserId);
+        });
     }
 
     @Transactional
@@ -577,16 +580,23 @@ public class ChapterService {
         // Increment view count
         chapterRepository.incrementViewCount(chapter.getId());
         
-        // Publish chapter view event
-        try {
-            Novel novel = novelService.getNovelEntity(chapter.getNovelId());
-            if (novel != null) {
-                kafkaEventProducerService.publishChapterViewEvent(chapter, novel, userId, userAgent, ipAddress, referrer);
+        // Publish chapter view event AFTER transaction commit
+        final Chapter finalChapter = chapter;
+        final UUID finalUserId = userId;
+        final String finalUserAgent = userAgent;
+        final String finalIpAddress = ipAddress;
+        final String finalReferrer = referrer;
+        transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+            try {
+                Novel novel = novelService.getNovelEntity(finalChapter.getNovelId());
+                if (novel != null) {
+                    kafkaEventProducerService.publishChapterViewEvent(finalChapter, novel, finalUserId, finalUserAgent, finalIpAddress, finalReferrer);
+                }
+            } catch (Exception e) {
+                // Log error but don't fail - transaction already committed
+                System.err.println("Failed to publish chapter view event: " + e.getMessage());
             }
-        } catch (Exception e) {
-            // Log error but don't fail the transaction
-            System.err.println("Failed to publish chapter view event: " + e.getMessage());
-        }
+        });
     }
 
     @Transactional

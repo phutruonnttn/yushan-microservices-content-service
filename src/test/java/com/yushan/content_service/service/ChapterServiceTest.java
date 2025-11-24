@@ -33,6 +33,7 @@ public class ChapterServiceTest {
     private NovelService novelService;
     private ElasticsearchAutoIndexService elasticsearchAutoIndexService;
     private ChapterDomainEventPublisher chapterDomainEventPublisher;
+    private TransactionAwareKafkaPublisher transactionAwareKafkaPublisher;
     private ChapterService chapterService;
 
     @BeforeEach
@@ -43,6 +44,7 @@ public class ChapterServiceTest {
         novelService = Mockito.mock(NovelService.class);
         elasticsearchAutoIndexService = Mockito.mock(ElasticsearchAutoIndexService.class);
         chapterDomainEventPublisher = Mockito.mock(ChapterDomainEventPublisher.class);
+        transactionAwareKafkaPublisher = Mockito.mock(TransactionAwareKafkaPublisher.class);
 
         chapterService = new ChapterService();
         // Inject dependencies using ReflectionTestUtils
@@ -52,6 +54,7 @@ public class ChapterServiceTest {
         ReflectionTestUtils.setField(chapterService, "novelService", novelService);
         ReflectionTestUtils.setField(chapterService, "elasticsearchAutoIndexService", elasticsearchAutoIndexService);
         ReflectionTestUtils.setField(chapterService, "chapterDomainEventPublisher", chapterDomainEventPublisher);
+        ReflectionTestUtils.setField(chapterService, "transactionAwareKafkaPublisher", transactionAwareKafkaPublisher);
     }
 
     @Test

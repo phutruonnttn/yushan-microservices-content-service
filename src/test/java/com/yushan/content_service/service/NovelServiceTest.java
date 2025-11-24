@@ -32,6 +32,7 @@ public class NovelServiceTest {
     private KafkaEventProducerService kafkaEventProducerService;
     private CategoryService categoryService;
     private ElasticsearchAutoIndexService elasticsearchAutoIndexService;
+    private TransactionAwareKafkaPublisher transactionAwareKafkaPublisher;
     private NovelService novelService;
 
     @BeforeEach
@@ -41,6 +42,7 @@ public class NovelServiceTest {
         kafkaEventProducerService = Mockito.mock(KafkaEventProducerService.class);
         categoryService = Mockito.mock(CategoryService.class);
         elasticsearchAutoIndexService = Mockito.mock(ElasticsearchAutoIndexService.class);
+        transactionAwareKafkaPublisher = Mockito.mock(TransactionAwareKafkaPublisher.class);
 
         novelService = new NovelService();
         try {
@@ -63,6 +65,10 @@ public class NovelServiceTest {
             java.lang.reflect.Field f5 = NovelService.class.getDeclaredField("elasticsearchAutoIndexService");
             f5.setAccessible(true);
             f5.set(novelService, elasticsearchAutoIndexService);
+            
+            java.lang.reflect.Field f6 = NovelService.class.getDeclaredField("transactionAwareKafkaPublisher");
+            f6.setAccessible(true);
+            f6.set(novelService, transactionAwareKafkaPublisher);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -117,7 +123,7 @@ public class NovelServiceTest {
 
         verify(novelRepository).save(any(Novel.class));
         verify(redisUtil).cacheNovel(anyInt(), any(Novel.class));
-        verify(kafkaEventProducerService).publishNovelCreatedEvent(any(Novel.class), any(UUID.class));
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
@@ -193,7 +199,7 @@ public class NovelServiceTest {
 
         verify(novelRepository).findById(novelId);
         verify(novelRepository).save(any(Novel.class));
-        verify(kafkaEventProducerService).publishNovelUpdatedEvent(any(Novel.class), any(UUID.class), any(String[].class));
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
@@ -233,6 +239,7 @@ public class NovelServiceTest {
         assertEquals("UNDER_REVIEW", result.getStatus());
         verify(novelRepository).findById(novelId);
         verify(novelRepository).save(any(Novel.class));
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
@@ -273,6 +280,7 @@ public class NovelServiceTest {
         assertEquals("PUBLISHED", result.getStatus());
         verify(novelRepository).findById(novelId);
         verify(novelRepository).save(any(Novel.class));
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
@@ -296,6 +304,7 @@ public class NovelServiceTest {
         assertEquals("HIDDEN", result.getStatus());
         verify(novelRepository).findById(novelId);
         verify(novelRepository).save(any(Novel.class));
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
@@ -349,7 +358,7 @@ public class NovelServiceTest {
         verify(novelRepository).incrementViewCount(novelId);
         verify(redisUtil).incrementCachedViewCount(novelId);
         verify(redisUtil).cacheNovel(eq(novelId), any(Novel.class));
-        verify(kafkaEventProducerService).publishNovelViewEvent(any(Novel.class), eq(userId), eq(userAgent), eq(ipAddress), isNull());
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
@@ -432,6 +441,7 @@ public class NovelServiceTest {
         assertEquals("DRAFT", result.getStatus());
         verify(novelRepository).findById(novelId);
         verify(novelRepository).save(any(Novel.class));
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
@@ -455,6 +465,7 @@ public class NovelServiceTest {
         assertEquals("PUBLISHED", result.getStatus());
         verify(novelRepository).findById(novelId);
         verify(novelRepository).save(any(Novel.class));
+        verify(transactionAwareKafkaPublisher).publishAfterCommit(any(Runnable.class));
     }
 
     @Test
