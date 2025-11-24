@@ -45,6 +45,9 @@ public class NovelService {
     @Autowired(required = false)
     private ElasticsearchAutoIndexService elasticsearchAutoIndexService;
 
+    @Autowired
+    private TransactionAwareKafkaPublisher transactionAwareKafkaPublisher;
+
     /**
      * Create a new novel
      */
@@ -86,8 +89,12 @@ public class NovelService {
         // Cache the new novel
         redisUtil.cacheNovel(novel.getId(), novel);
         
-        // Publish Kafka event
-        kafkaEventProducerService.publishNovelCreatedEvent(novel, userId);
+        // Publish Kafka event AFTER transaction commit
+        final Novel finalNovel = novel;
+        final UUID finalUserId = userId;
+        transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+            kafkaEventProducerService.publishNovelCreatedEvent(finalNovel, finalUserId);
+        });
         
         // Auto-index to Elasticsearch
         if (elasticsearchAutoIndexService != null) {
@@ -292,10 +299,14 @@ public class NovelService {
         // Cache the updated novel
         redisUtil.cacheNovel(id, existing);
         
-        // Publish Kafka event only if there were actual changes
+        // Publish Kafka event only if there were actual changes - AFTER transaction commit
         if (!updatedFields.isEmpty()) {
-            kafkaEventProducerService.publishNovelUpdatedEvent(existing, existing.getAuthorId(), 
-                updatedFields.toArray(new String[0]));
+            final Novel finalExisting = existing;
+            final UUID finalAuthorId = existing.getAuthorId();
+            final String[] finalUpdatedFields = updatedFields.toArray(new String[0]);
+            transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+                kafkaEventProducerService.publishNovelUpdatedEvent(finalExisting, finalAuthorId, finalUpdatedFields);
+            });
             
             // Auto-index to Elasticsearch
             if (elasticsearchAutoIndexService != null) {
@@ -372,8 +383,14 @@ public class NovelService {
         // Cache the updated novel data
         redisUtil.cacheNovel(id, updatedNovel);
         
-        // Publish Kafka event
-        kafkaEventProducerService.publishNovelViewEvent(novel, userId, userAgent, ipAddress, null);
+        // Publish Kafka event AFTER transaction commit
+        final Novel finalNovel = novel;
+        final UUID finalUserId = userId;
+        final String finalUserAgent = userAgent;
+        final String finalIpAddress = ipAddress;
+        transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+            kafkaEventProducerService.publishNovelViewEvent(finalNovel, finalUserId, finalUserAgent, finalIpAddress, null);
+        });
     }
 
     /**
@@ -587,8 +604,13 @@ public class NovelService {
         // Invalidate cache since novel status changed
         redisUtil.invalidateNovelCaches(novelId);
         
-        // Publish Kafka event
-        kafkaEventProducerService.publishNovelStatusChangedEvent(novel, previousStatus, NovelStatus.UNDER_REVIEW.toString(), userId, "Submitted for review");
+        // Publish Kafka event AFTER transaction commit
+        final Novel finalNovel = novel;
+        final String finalPreviousStatus = previousStatus;
+        final UUID finalUserId = userId;
+        transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+            kafkaEventProducerService.publishNovelStatusChangedEvent(finalNovel, finalPreviousStatus, NovelStatus.UNDER_REVIEW.toString(), finalUserId, "Submitted for review");
+        });
         
         return toResponse(novel);
     }
@@ -655,10 +677,13 @@ public class NovelService {
         // Invalidate cache since novel status changed
         redisUtil.invalidateNovelCaches(novelId);
         
-        // Publish Kafka event
-        kafkaEventProducerService.publishNovelStatusChangedEvent(novel, 
-            requiredCurrentStatus != null ? requiredCurrentStatus.toString() : "UNKNOWN", 
-            newStatus.toString(), null, "Status changed by admin");
+        // Publish Kafka event AFTER transaction commit
+        final Novel finalNovel = novel;
+        final String finalPreviousStatus = requiredCurrentStatus != null ? requiredCurrentStatus.toString() : "UNKNOWN";
+        final String finalNewStatus = newStatus.toString();
+        transactionAwareKafkaPublisher.publishAfterCommit(() -> {
+            kafkaEventProducerService.publishNovelStatusChangedEvent(finalNovel, finalPreviousStatus, finalNewStatus, null, "Status changed by admin");
+        });
         
         return toResponse(novel);
     }
