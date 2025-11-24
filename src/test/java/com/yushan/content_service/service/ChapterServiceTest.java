@@ -1,5 +1,6 @@
 package com.yushan.content_service.service;
 
+import com.yushan.content_service.domain.event.ChapterDomainEventPublisher;
 import com.yushan.content_service.repository.ChapterRepository;
 import org.springframework.test.util.ReflectionTestUtils;
 import com.yushan.content_service.dto.chapter.*;
@@ -31,6 +32,7 @@ public class ChapterServiceTest {
     private KafkaEventProducerService kafkaEventProducerService;
     private NovelService novelService;
     private ElasticsearchAutoIndexService elasticsearchAutoIndexService;
+    private ChapterDomainEventPublisher chapterDomainEventPublisher;
     private ChapterService chapterService;
 
     @BeforeEach
@@ -40,6 +42,7 @@ public class ChapterServiceTest {
         kafkaEventProducerService = Mockito.mock(KafkaEventProducerService.class);
         novelService = Mockito.mock(NovelService.class);
         elasticsearchAutoIndexService = Mockito.mock(ElasticsearchAutoIndexService.class);
+        chapterDomainEventPublisher = Mockito.mock(ChapterDomainEventPublisher.class);
 
         chapterService = new ChapterService();
         // Inject dependencies using ReflectionTestUtils
@@ -48,6 +51,7 @@ public class ChapterServiceTest {
         ReflectionTestUtils.setField(chapterService, "kafkaEventProducerService", kafkaEventProducerService);
         ReflectionTestUtils.setField(chapterService, "novelService", novelService);
         ReflectionTestUtils.setField(chapterService, "elasticsearchAutoIndexService", elasticsearchAutoIndexService);
+        ReflectionTestUtils.setField(chapterService, "chapterDomainEventPublisher", chapterDomainEventPublisher);
     }
 
     @Test
