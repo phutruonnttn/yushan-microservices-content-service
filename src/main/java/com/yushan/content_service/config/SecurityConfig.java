@@ -14,6 +14,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import com.yushan.content_service.security.CustomMethodSecurityExpressionHandler;
+import com.yushan.content_service.security.GatewayAuthenticationFilter;
 import com.yushan.content_service.security.JwtAuthenticationEntryPoint;
 import com.yushan.content_service.security.JwtAuthenticationFilter;
 import com.yushan.content_service.security.UserActivityFilter;
@@ -28,6 +29,9 @@ public class SecurityConfig {
     
     @Autowired
     private JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+    
+    @Autowired
+    private GatewayAuthenticationFilter gatewayAuthenticationFilter;
     
     @Autowired
     private JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -148,10 +152,13 @@ public class SecurityConfig {
             .formLogin(form -> form.disable())
             .httpBasic(basic -> basic.disable())
             
-            // Add JWT filter before UsernamePasswordAuthenticationFilter
+            // Add Gateway filter first (for gateway-validated requests)
+            // Then add JWT filter (for backward compatibility with direct service calls or inter-service calls)
+            // JWT validation is primarily handled at Gateway level, but services can still validate JWT for backward compatibility
+            .addFilterBefore(gatewayAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             
-            // Add user activity filter after JWT filter
+            // Add user activity filter after authentication filters
             .addFilterAfter(userActivityFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

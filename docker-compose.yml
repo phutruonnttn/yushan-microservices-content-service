@@ -109,6 +109,14 @@ services:
       # Config Server Configuration
       CONFIG_SERVER_URI: http://yushan-config-server:8888
 
+      # JWT Configuration (must match config-server and Gateway)
+      JWT_SECRET: ${JWT_SECRET:-yushan-micro-service-secret-key-for-jwt-token-generation-and-validation-2024}
+      JWT_ISSUER: ${JWT_ISSUER:-yushan-micro-service}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+
+      # Gateway HMAC Configuration
+      GATEWAY_HMAC_SECRET: ${GATEWAY_HMAC_SECRET:-yushan-gateway-hmac-secret-key-for-request-signature-2024}
+
       # DigitalOcean Spaces Configuration
       SPACES_ACCESS_KEY: ${SPACES_ACCESS_KEY}
       SPACES_SECRET_KEY: ${SPACES_SECRET_KEY}
